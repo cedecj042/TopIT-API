@@ -6,7 +6,7 @@ json_files
 app.log
 /api_env/
 /faster_rcnn/
-dockerignore
+.dockerignore
 /docker/
 /chroma_db1/
 .env
