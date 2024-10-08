@@ -1,0 +1,14 @@
+/backup/
+/detectron2/
+/images/
+/uploads/
+json_files
+app.log
+/api_env/
+/faster_rcnn/
+.dockerignore
+/docker/
+/chroma_db1/
+.env
+chroma.log
+desktop.ini
