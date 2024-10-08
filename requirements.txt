@@ -1,0 +1,20 @@
+fastapi
+pydantic
+pytesseract
+easyocr
+opencv-python-headless
+Pillow
+requests
+uuid
+python-dotenv
+langchain
+llama-index
+sentence-transformers
+chromadb
+torch
+fitz  # PyMuPDF
+uvicorn
+python-multipart
+layoutparser
+nest-asyncio
+openai
