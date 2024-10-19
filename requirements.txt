@@ -9,10 +9,16 @@ easyocr
 pytesseract
 nest-asyncio
 PyMuPDF
+python-multipart
 torch
 langchain
+langchain_chroma
+langchain_core
+langchain_huggingface
+langchain_openai
 sentence-transformers
 chromadb
 llama-index
 langchain-community
 llama_parse
+layoutparser

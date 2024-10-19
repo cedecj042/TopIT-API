@@ -38,9 +38,9 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",  # Date format for log messages
 )
 
-    # Check if GPU is available
+# Check if GPU is available
 gpu_available = torch.cuda.is_available()
-reader = easyocr.Reader(['en'],gpu=gpu_available,model_storage_directory=None,download_enabled=False)
+reader = easyocr.Reader(['en'],gpu=gpu_available,model_storage_directory=None,download_enabled=True)
 
 def natural_sort_key(s):
     """Helper function to extract numbers from a string for natural sorting."""

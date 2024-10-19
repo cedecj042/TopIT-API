@@ -344,6 +344,3 @@ def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     except requests.exceptions.RequestException as e:
         return f"Error occurred while sending data to Laravel: {e}"
 
-# createQuestions(1, "Software Development", 10, "identification", 2, 2, 2, 2, 2)
-
-# client.get()
