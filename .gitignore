@@ -12,3 +12,4 @@ app.log
 .env
 chroma.log
 desktop.ini
+__pycache__

@@ -21,7 +21,7 @@ import torch
 from dotenv import load_dotenv
 
 load_dotenv() 
-ip = os.getenv('IP_ADDRESS')
+ip = os.getenv('LARAVEL_IP_ADDRESS')
 
 model = lp.Detectron2LayoutModel(
     config_path='faster_rcnn/config.yaml',
@@ -59,7 +59,8 @@ def clean_and_sanitize_text(text):
     
     # Remove specific newline patterns
     text = re.sub(r"\n+", ' ', text)  # Replacing newline with a space instead of removing
-
+    # Replace semicolons with commas
+    text = text.replace(';', ',')
     # Strip harmful HTML tags, but allow basic formatting
     allowed_tags = ['<b>', '<i>', '<p>', '<strong>', '<em>', '<ul>', '<ol>', '<li>', '<br>', '<br />']
     tag_re = re.compile(r'(<!--.*?-->|<[^>]*>)')
@@ -78,11 +79,20 @@ def process_image_with_layoutparser(image, model):
 def extract_text_from_layout(sorted_layout, image):
     items = {}
     relevant_types = ["Text", "Tables", "Module", "Lesson", "Section", "Subsection", "Caption", "Code", "Figures", "Header"]
-    
+
+    # Define a Y-coordinate threshold to filter out bottom sections (e.g., page numbers)
+    height, width, _ = image.shape
+    y_threshold = int(0.9 * height)  # Set this to 90% of the image height, adjust if necessary
+
     for idx, lay in enumerate(sorted_layout):
         if lay.type in relevant_types:
             rect = lay.block
             x1, y1, x2, y2 = int(rect.x_1), int(rect.y_1), int(rect.x_2), int(rect.y_2)
+            
+            # Skip blocks that appear near the bottom (possible page numbers)
+            if y1 > y_threshold:
+                continue
+
             cropped_image = image[y1:y2, x1:x2]
 
             if lay.type in ["Tables", "Figures", "Code"]:
@@ -107,6 +117,7 @@ def extract_text_from_layout(sorted_layout, image):
                     "coordinates": [x1, y1, x2, y2]
                 }
     return items
+
 
 # Initialize order counter
 order_counter = 1
@@ -158,7 +169,7 @@ def add_to_last_object(course_structure, key, value):
                 section = {"Title": value["text"], "Type": value["type"], "Subsections": [], "Content": []}
                 last_lesson["Sections"].append(section)
             else:
-                new_lesson = {"Title": f"Lesson {get_total(course_structure.get('Lessons', []))}", "Type": "Lesson", "Sections": [], "Content": []}
+                new_lesson = {"Title": "", "Type": "Lesson", "Sections": [], "Content": []}
                 section = {"Title": value["text"], "Type": value["type"], "Subsections": [], "Content": []}
                 new_lesson["Sections"].append(section)
                 last_module = find_last_object(course_structure, "Modules")
@@ -174,7 +185,7 @@ def add_to_last_object(course_structure, key, value):
                 subsection = {"Title": value["text"], "Content": []}
                 last_section["Subsections"].append(subsection)
             else:
-                new_section = {"Title": f"Section {get_total(course_structure.get('Sections', []))}", "Type": "Section", "Subsections": [], "Content": []}
+                new_section = {"Title": "", "Type": "Section", "Subsections": [], "Content": []}
                 subsection = {"Title": value["text"], "Type": value["type"], "Content": []}
                 new_section["Subsections"].append(subsection)
                 last_lesson = find_last_object(course_structure, "Lessons")
@@ -182,7 +193,7 @@ def add_to_last_object(course_structure, key, value):
                     last_lesson["Sections"].append(new_section)
                 else:
                     logging.debug(f"Creating a new lesson and adding a section with subsection")
-                    new_lesson = {"Title": f"Lesson {get_total(course_structure.get('Lessons', []))}", "Type": "Lesson", "Sections": [], "Content": []}
+                    new_lesson = {"Title": "", "Type": "Lesson", "Sections": [], "Content": []}
                     new_lesson["Sections"].append(new_section)
                     last_module = find_last_object(course_structure, "Modules")
                     if last_module:
@@ -199,26 +210,38 @@ def add_to_last_object(course_structure, key, value):
                    find_last_object(course_structure, "Lessons") or \
                    find_last_object(course_structure, "Modules") or \
                    course_structure
-        value["order"] = order_counter
-        if key == "Tables":
-            if "Tables" not in last_obj:
-                last_obj["Tables"] = []
-            last_obj["Tables"].append(value)
-        elif key == "Figures":
-            if "Figures" not in last_obj:
-                last_obj["Figures"] = []
-            last_obj["Figures"].append(value)
-        elif key == "Code":
-            if "Codes" not in last_obj:
-                last_obj["Codes"] = []
-            last_obj["Codes"].append(value)
+        if key == "Text":
+            # Check if there's a previous Text item in Content with an adjacent order
+            if last_obj["Content"] and last_obj["Content"][-1]["type"] == "Text" and last_obj["Content"][-1]["order"] == order_counter - 1:
+                # Merge text with the previous Text entry
+                last_obj["Content"][-1]["text"] += " " + value["text"]
+            else:
+                # Add as new Text entry with current order
+                value["order"] = order_counter
+                if "Content" not in last_obj:
+                    last_obj["Content"] = []
+                last_obj["Content"].append(value)
+                order_counter += 1
         else:
-            if "Content" not in last_obj:
-                last_obj["Content"] = []
-            last_obj["Content"].append(value)
-
-        # Increment order for each content element added
-        order_counter += 1
+            value["order"] = order_counter
+            if key == "Tables":
+                if "Tables" not in last_obj:
+                    last_obj["Tables"] = []
+                last_obj["Tables"].append(value)
+            elif key == "Figures":
+                if "Figures" not in last_obj:
+                    last_obj["Figures"] = []
+                last_obj["Figures"].append(value)
+            elif key == "Code":
+                if "Codes" not in last_obj:
+                    last_obj["Codes"] = []
+                last_obj["Codes"].append(value)
+            else:
+                if "Content" not in last_obj:
+                    last_obj["Content"] = []
+                last_obj["Content"].append(value)
+            # Increment order for each content element added
+            order_counter += 1
 
 def build_json_structure(extracted_data, course_structure=None, course_name=""):
     if not isinstance(extracted_data, dict):
@@ -232,10 +255,10 @@ def build_json_structure(extracted_data, course_structure=None, course_name=""):
     # To keep track of unassigned captions (before and after)
     before_caption = None
     last_block_info = None
-
+    
     for block_id, data in extracted_data.items():
         text_type = data.get("type")
-        
+
         # Handle caption before the table/figure/code
         if text_type == "Caption":
             if last_block_info and last_block_info["type"] in ["Tables", "Figures", "Code"]:
@@ -271,7 +294,7 @@ def build_json_structure(extracted_data, course_structure=None, course_name=""):
 
             # Add the block_info to the structure immediately
             add_to_last_object(course_structure, text_type, block_info)
-
+    
     return course_structure
 
 
