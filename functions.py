@@ -5,6 +5,8 @@ import os
 import cv2
 import layoutparser as lp
 from PIL import Image
+import base64
+import io
 import pytesseract
 import easyocr
 import json
@@ -50,6 +52,51 @@ def sort_textblocks_by_y1(textblocks):
     """Sort TextBlocks by their y_1 coordinate in ascending order."""
     return sorted(textblocks, key=lambda tb: tb.block.y_1, reverse=False)
 
+def decode_base64_image(base64_str):
+    """Convert a base64 string into a PIL image."""
+    image_data = base64.b64decode(base64_str)
+    return Image.open(BytesIO(image_data))
+
+def image_to_base64(image):
+    """Convert a PIL image to a base64 encoded string."""
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+def merge_images_centered(images, background_color=(255, 255, 255)):
+    """
+    Merge images vertically, centered horizontally.
+    Takes a list of PIL Images or base64 strings.
+    """
+    # Handle both PIL Images and base64 strings
+    imgs = []
+    for img in images:
+        if isinstance(img, Image.Image):
+            imgs.append(img.convert("RGBA"))
+        else:
+            # If it's a base64 string
+            imgs.append(decode_base64_image(img).convert("RGBA"))
+    
+    # Calculate max dimensions
+    widths, heights = zip(*(img.size for img in imgs))
+    max_width = max(widths)
+    total_height = sum(heights)
+
+    # Create a new blank image
+    new_image = Image.new('RGBA', (max_width, total_height), background_color + (255,))
+
+    # Center each image horizontally
+    y_offset = 0
+    for img in imgs:
+        x_offset = (max_width - img.width) // 2
+        new_image.paste(img, (x_offset, y_offset), img)
+        y_offset += img.height
+
+    # Convert to RGB
+    new_image = new_image.convert("RGB")
+
+    return new_image
+
 
 def clean_and_sanitize_text(text):
     # Remove unwanted characters and patterns
@@ -70,6 +117,7 @@ def clean_and_sanitize_text(text):
 
     # Trim any extra whitespace
     return text.strip()
+
 
 def process_image_with_layoutparser(image, model):
     layout = model.detect(image)
@@ -104,7 +152,6 @@ def extract_text_from_layout(sorted_layout, image):
                 items[f"Block_{idx+1}"] = {
                     "type": lay.type,
                     "image_base64": img_str,
-                    "coordinates": [x1, y1, x2, y2]
                 }
             else:
                 # Use EasyOCR to extract text
@@ -114,7 +161,6 @@ def extract_text_from_layout(sorted_layout, image):
                 items[f"Block_{idx+1}"] = {
                     "type": lay.type,
                     "text": cleaned_text,
-                    "coordinates": [x1, y1, x2, y2]
                 }
     return items
 
@@ -222,6 +268,39 @@ def add_to_last_object(course_structure, key, value):
                     last_obj["Content"] = []
                 last_obj["Content"].append(value)
                 order_counter += 1
+        elif key == "Tables":   
+            if "Tables" not in last_obj:
+                last_obj["Tables"] = []         
+            # Check if the last table item was not merged, to ensure we only merge once
+            if last_obj["Tables"] and last_obj["Tables"][-1].get("merged") is not True:
+                # If the previous item is also a Table, merge it with the current Table
+                previous_item = last_obj["Tables"].pop()  # Remove the previous item to merge it
+
+                # Call merge_images_centered only once with both images
+                merged_image = merge_images_centered([
+                    decode_base64_image(previous_item["image_base64"]),
+                    decode_base64_image(value["image_base64"])
+                ])
+                
+                # Convert the merged image to base64
+                merged_image_base64 = image_to_base64(merged_image)
+
+                # Create a new merged item and add it back to Tables
+                merged_item = {
+                    "type": "Tables",
+                    "image_base64": merged_image_base64,  # Store the merged image as base64
+                    "before_caption": value.get("before_caption"),
+                    "after_caption": value.get("after_caption"),
+                    "order": order_counter,
+                    "merged": True  # Flag to indicate this is a merged item
+                }
+                last_obj["Tables"].append(merged_item)
+                order_counter += 1
+            else:
+                # If no previous Table to merge, add the current Table as a new entry
+                value["order"] = order_counter
+                last_obj["Tables"].append(value)
+                order_counter += 1
         else:
             value["order"] = order_counter
             if key == "Tables":
@@ -274,7 +353,6 @@ def build_json_structure(extracted_data, course_structure=None, course_name=""):
             block_info = {
                 "type": text_type,
                 "image_base64": data.get("image_base64"),
-                "coordinates": data.get("coordinates"),
                 "before_caption": before_caption,  # Caption that appeared before this block
                 "after_caption": None  # Placeholder for caption that may appear after
             }
@@ -363,7 +441,7 @@ def actual_pdf_processing_function(file_content, course_name: str, filename: str
             "processed_data": course_json
         })
         
-        shutil.rmtree(upload_dir)
+        # shutil.rmtree(upload_dir)
         
         if response.status_code == 201:
             logging.info("Data stored successfully in Laravel.")
