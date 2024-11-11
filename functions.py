@@ -460,10 +460,17 @@ def process_content(content_list):
     processed_content = []
     
     for item in content_list:
-        # Check if it's a header or text and process it accordingly
-        if item["type"] == "Header":
-            processed_content.append(f"Header: {item['text']}")
-        elif item["type"] == "Text":
-            processed_content.append(f"Text: {item['text']}")
+        # Access fields with dot notation instead of bracket notation
+        if item.type == "Header":
+            processed_content.append(f"Header: {item.description}")
+        elif item.type == "Text":
+            processed_content.append(f"Text: {item.description}")
+        
+        # Handle Table, Figure, and Code content types
+        elif item.type in ["Table", "Figure", "Code"]:
+            content_str = f"{item.type}: {item.description}"
+            if item.caption:
+                content_str += f". Caption: {item.caption}"
+            processed_content.append(content_str)
     
     return processed_content
