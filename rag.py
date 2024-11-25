@@ -1,22 +1,18 @@
-# for getting environment variables
-from dotenv import load_dotenv
-load_dotenv() 
-
 # for llamaparse
-from llama_parse import LlamaParse
-from llama_index.core import SimpleDirectoryReader
+# from llama_parse import LlamaParse
+# from llama_index.core import SimpleDirectoryReader
 
 # langchain
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
-from langchain_openai import ChatOpenAI
+
+# from langchain_chroma import Chroma
+# from langchain_openai import ChatOpenAI
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 # from langchain.chains import RetrievalQA
-from langchain_community.llms import Ollama
-from langchain_core.documents import Document
-from sentence_transformers import SentenceTransformer
+# from langchain_community.llms import Ollama
+# from langchain_core.documents import Document
+# from sentence_transformers import SentenceTransformer
 import chromadb.utils.embedding_functions as embedding_functions
 
 from chromadb.config import Settings
@@ -37,9 +33,11 @@ import json
 from PIL import UnidentifiedImageError
 
 #regex
-import re, os,uuid,requests,chromadb
+import re,uuid,requests
 from pydantic import BaseModel
 from datetime import datetime
+
+from setup import *
 
 
 # Configure logging
@@ -80,28 +78,6 @@ class CreateQuestionsRequest(BaseModel):
     questions: list[Question]
     
     
-api_key = os.getenv("OPENAI_API_KEY")
-ip = os.getenv('IP_ADDRESS')
-
-model_name = 'sentence-transformers/all-MiniLM-L6-v2'
-model_kwargs = {'device': 'cpu'} #use "cuda" if you have nvidia gpu otherwise use "cpu"
-encode_kwargs = {'normalize_embeddings': True}
-
-Sbert = HuggingFaceEmbeddings(
-    model_name=model_name,
-    model_kwargs=model_kwargs,
-    encode_kwargs=encode_kwargs
-)
-
-vector_store = Chroma(
-    collection_name="TopIT",
-    embedding_function=Sbert,
-    persist_directory="./chroma_db1",  # Where to save data locally, remove if not neccesary
-)
-
-# Load the llm 
-llm = ChatOpenAI(model_name="gpt-4o-mini",api_key=api_key)
-
 def cleanText(text):
     text = re.sub(r'^([0-9][0-9]|[A-Z]\)|@|©|\|\.|[0-9])\s*', '', text)
     text = re.sub(r'[+*]', '', text)
@@ -136,8 +112,11 @@ def ModelQuerywithRAG(input, course_id):
     
     # Define prompt template
     template = """
-    You are a Information Technology College Teacher that is handling Reviewer for Information Technology certification reviewers. 
-    You should create an questions that is a college level for Test of Practical Competency in IT which is application, situational, and textual based questions.
+    TOPCIT (Test of Practical Competency in IT) is designed to assess competencies in practical IT skills such as programming, algorithm problem-solving, and 
+    IT business understanding. TOPCIT questions are typically scenario-based, requiring critical thinking and practical application of knowledge in areas like 
+    software development, database management, algorithms, and IT ethics.
+    You are a Information Technology College Teacher that is handling Reviewer for Information Technology certification reviewers.
+    You are tasked to create questions for simulated exams for topcit.
 
     <context>
     {context}
@@ -157,64 +136,50 @@ def ModelQuerywithRAG(input, course_id):
     return response['answer']
 
 
-multiple_choice_single_answer = """{
+multiple_choice_single = """{
     "question": "What is the primary function of a compiler?",
-    "questionType": "Multiple Choice - Single Answer",
-    "correctAnswer": "Compilation",
+    "questionType": "Multiple Choice - Single",
+    "answer": "Compilation",
     "difficulty": "very easy",
     "discrimination": -4.5,
-    "choices": [
-        {"choice_1": "Execution"},
-        {"choice_2": "Compilation"},
-        {"choice_3": "Interpretation"},
-        {"choice_4": "Debugging"}
-    ]
+    "choices": ["Execution","Compilation","Interpretation","Debugging"]
 },"""
 
-multiple_choice_multiple_answer = """{
+multiple_choice_many = """{
     "question": "Which of the following programming languages is known for its simplicity and ease of use?",
-    "questionType": "Multiple Choice - Multiple Answer",
-    "correctAnswer": [
-        {"Correct_answer_1": "Python"},
-        {"Correct_answer_2": "Ruby"}
-    ],
+    "questionType": "Multiple Choice - Many",
+    "answer": ["Python","Ruby"],
     "difficulty": "hard",
     "discrimination": 2.2,
-    "choices": [
-        {"choice_1": "Java"},
-        {"choice_2": "C++"},
-        {"choice_3": "Python"},
-        {"choice_4": "Ruby"}
-    ]
+    "choices": ["Java","C++","Python","Ruby"]
 },"""
 
 identification = """ {
     "question": "What is the term for a program that translates one programming language into another?",
     "questionType": "Identification",
-    "correctAnswer": "Interpreter",
+    "answer": "Interpreter",
     "difficulty": "Very Hard",
     "discrimination": 4.5
 }"""
  
-    
-questionType = ['Identification','Multiple Choice - Single Answer','Multiple Choice - Many Answer']
+questionType = ['Identification','Multiple Choice - Single','Multiple Choice - Many']
                     
 def validate_question_format(result, question_type):
     # Define correct format based on question type
-    if question_type == "Multiple Choice - Single Answer":
+    if question_type == "Multiple Choice - Single":
         correct_format = {
             "question": str,
             "questionType": str,
-            "correctAnswer": str,
+            "answer": str,
             "difficulty": str,
             "discrimination": float,
             "choices": list
         }
-    elif question_type == "Multiple Choice - Multiple Answer":
+    elif question_type == "Multiple Choice - Many":
         correct_format = {
             "question": str,
             "questionType": str,
-            "correctAnswer": list,
+            "answer": list,
             "difficulty": str,
             "discrimination": float,
             "choices": list
@@ -223,7 +188,7 @@ def validate_question_format(result, question_type):
         correct_format = {
             "question": str,
             "questionType": str,
-            "correctAnswer": str,
+            "answer": str,
             "difficulty": str,
             "discrimination": float
         }
@@ -236,19 +201,22 @@ def validate_question_format(result, question_type):
 
 def createQuestions(data: QuestionFormat):
     # Define the question type
-    if data.questionType == "multiple-choice-single":
-        example = multiple_choice_single_answer
-        questionTypewithDescription = "Multiple Choice - Single Answer"
-    elif data.questionType == "multiple-choice-many":
-        example = multiple_choice_multiple_answer
-        questionTypewithDescription = "Multiple Choice - Multiple Answer (correct answers should be between 2 - 3)"
-    elif data.questionType == "identification":
+    if data.questionType == "Multiple Choice - Single":
+        example = multiple_choice_single
+        questionTypewithDescription = "Multiple Choice - Single"
+    elif data.questionType == "Multiple Choice - Many":
+        example = multiple_choice_many
+        questionTypewithDescription = "Multiple Choice - Many must have atleast 2 answers and dont put only 1 answer"
+    elif data.questionType == "Identification":
         example = identification
-        questionTypewithDescription = "Identification (maximum of 2 words for 1 correct answer)"
+        questionTypewithDescription = "Identification must have a maximum of 2 words in 1 correct answer"
   
     try:
         instructions = f"""
-            Generate a question and answer pairs in the form of {questionTypewithDescription} based on the content of the {data.course_title} course. The generated questions should include the following:
+            Generate a question and answer pairs in the form of {questionTypewithDescription} based on the content of the {data.course_title} course. 
+            Provide a realistic and practical scenario related to {data.course_title}. Formulate a question that tests critical thinking and application of knowledge. 
+            Include coding questions and analytical questions in a certain situations.
+            The generated questions should include the following:
             - {data.numOfVeryEasy} Very Easy questions
             - {data.numOfEasy} Easy questions
             - {data.numOfAverage} Average questions
@@ -262,6 +230,8 @@ def createQuestions(data: QuestionFormat):
             - Hard: 1.1 to 3.0
             - Very Hard: 3.1 to 5.0
             Ensure that the discrimination values strictly stay within these ranges and round to the nearest tenth if necessary.
+            Follow the bloombergs taxonomy for difficulty estimation. Very Easy for remember, Easy for Understand, Apply for Average, Analyze for Hard, Evaluate for Very Hard.
+            Ensure the question is clear, concise, and within the context of the TOPCIT exam format.
 
             It should be stored in a JSON format like this and don't put any text beside this:
             
@@ -335,12 +305,13 @@ def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     
     try:
         response = requests.post(url, json=all_questions)
-        logging.info(response)
+        logging.info(f"Response: {response.status_code} - {response.text}")
         if response.status_code == 200:
             return "Successfully sent the data to Laravel."
         else:
             return f"Failed to send data: {response.status_code} - {response.text}"
-    
     except requests.exceptions.RequestException as e:
-        return f"Error occurred while sending data to Laravel: {e}"
+        logging.error(f"Error while sending data to Laravel: {e}")
+        return "Failed to send data to Laravel due to a connection error."
+
 

@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 import os
 import cv2
-import layoutparser as lp
 from PIL import Image
 import base64
 import io
@@ -20,17 +19,8 @@ from io import BytesIO
 import logging 
 import re
 import torch
-from dotenv import load_dotenv
+from setup import *
 
-load_dotenv() 
-ip = os.getenv('LARAVEL_IP_ADDRESS')
-
-model = lp.Detectron2LayoutModel(
-    config_path='faster_rcnn/config.yaml',
-    model_path='faster_rcnn/model_final.pth',
-    extra_config=["MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.7],
-    label_map={0: "Caption", 1: "Code", 2: "Figures", 3: "Header", 4: "Lesson", 5: "Module", 6: "Section", 7: "Subsection", 8: "Tables", 9: "Text"}
-)
 
 # Configure logging
 logging.basicConfig(
