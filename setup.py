@@ -4,11 +4,23 @@ from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_community.chat_models import ChatOpenAI
+from langchain.schema import Document
+
+# for llamaparse
+from llama_parse import LlamaParse
+from llama_index.core import SimpleDirectoryReader
+
 from dotenv import load_dotenv
 load_dotenv() 
 
 api_key = os.getenv("OPENAI_API_KEY")
 ip = os.getenv('LARAVEL_IP_ADDRESS')
+API_KEY_LlamaParse = os.getenv("LLAMA_CLOUD_API_KEY")
+# Set up the parser
+parser = LlamaParse(
+    api_key=API_KEY_LlamaParse,
+    result_type="text"
+)
 
 model = lp.Detectron2LayoutModel(
     config_path='faster_rcnn/config.yaml',

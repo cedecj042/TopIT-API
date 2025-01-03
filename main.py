@@ -6,13 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
-# for llamaparse
-from llama_parse import LlamaParse
-from llama_index.core import SimpleDirectoryReader
-
 from typing import Dict, Any
 from functions import *
 from rag import *
+from setup import *
 import nest_asyncio
 import time
 import asyncio
@@ -34,15 +31,6 @@ logging.basicConfig(
     level=logging.INFO,  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Log format
     datefmt="%Y-%m-%d %H:%M:%S",  # Date format for log messages
-)
-
-# Load environment variables
-load_dotenv()
-API_KEY_LlamaParse = os.getenv("LLAMA_CLOUD_API_KEY")
-# Set up the parser
-parser = LlamaParse(
-    api_key=API_KEY_LlamaParse,
-    result_type="text"
 )
 
 class QueryRequest(BaseModel):
@@ -274,7 +262,6 @@ async def add_modules_bulk(modules: List[ModuleModel]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
-
 @app.post("/create_course/")
 async def create_course(course: CourseModel):
     try:
@@ -299,6 +286,31 @@ async def create_course(course: CourseModel):
             ids=[str(course.course_id)],
         )
         return {"message": "Course created successfully", "course_id": course.course_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+from fastapi import HTTPException
+
+@app.delete("/delete_module/{module_id}")
+async def delete_module(module_id: int):
+    try:
+        # Retrieve all documents associated with the module_id
+        module_related_documents = vector_store._collection.get(
+            where=lambda doc: doc['metadata'].get('module_id') == module_id
+        )
+        
+        # Extract document IDs to delete
+        document_ids = [doc['id'] for doc in module_related_documents if 'id' in doc]
+
+        # If no documents are found, raise a 404 error
+        if not document_ids:
+            raise HTTPException(status_code=404, detail=f"No module or associated content found for Module ID {module_id}.")
+
+        # Delete all documents related to the module_id
+        vector_store._collection.delete(ids=document_ids)
+        
+        return {"message": f"Module {module_id} and all associated documents deleted successfully."}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")

@@ -140,8 +140,9 @@ multiple_choice_single = """{
     "question": "What is the primary function of a compiler?",
     "questionType": "Multiple Choice - Single",
     "answer": "Compilation",
-    "difficulty": "very easy",
-    "discrimination": -4.5,
+    "discrimination": 0.5,
+    "difficulty_type": "Easy",
+    "difficulty_value":-2.5,
     "choices": ["Execution","Compilation","Interpretation","Debugging"]
 },"""
 
@@ -149,17 +150,19 @@ multiple_choice_many = """{
     "question": "Which of the following programming languages is known for its simplicity and ease of use?",
     "questionType": "Multiple Choice - Many",
     "answer": ["Python","Ruby"],
-    "difficulty": "hard",
-    "discrimination": 2.2,
+    "difficulty_type": "Hard",
+    "difficulty_value":1.3,
+    "discrimination": 0.8,
     "choices": ["Java","C++","Python","Ruby"]
 },"""
 
 identification = """ {
-    "question": "What is the term for a program that translates one programming language into another?",
+    "question": "What is responsible for managing hardware resources in system architecture?,
     "questionType": "Identification",
-    "answer": "Interpreter",
-    "difficulty": "Very Hard",
-    "discrimination": 4.5
+    "answer": ["Operating System", "OS"],
+    "difficulty_type": "Very Hard",
+    "difficulty_value":3.4,
+    "discrimination": 1.3
 }"""
  
 questionType = ['Identification','Multiple Choice - Single','Multiple Choice - Many']
@@ -188,7 +191,7 @@ def validate_question_format(result, question_type):
         correct_format = {
             "question": str,
             "questionType": str,
-            "answer": str,
+            "answer": list,
             "difficulty": str,
             "discrimination": float
         }
@@ -209,13 +212,24 @@ def createQuestions(data: QuestionFormat):
         questionTypewithDescription = "Multiple Choice - Many must have atleast 2 answers and dont put only 1 answer"
     elif data.questionType == "Identification":
         example = identification
-        questionTypewithDescription = "Identification must have a maximum of 2 words in 1 correct answer"
+        questionTypewithDescription = """
+        Identification answers must have a maximum of 3 words.
+        Avoid questions that has a lot of subjective answers. 
+        Structure of Description for Identification Questions:
+        Directly ask the question, focusing on the specific term or concept.
+        Use clear and concise language.
+        Contextual Clue (Optional):
+        If necessary, provide a brief context or category to guide the student.
+        Keep it concise and relevant.
+        Example: "In software development, what technique is used to simplify complex problems?"
+        for its answers, list also the possible answers, for example the abbreviation(if there is one) or shortened word for the answer 
+        """
   
     try:
         instructions = f"""
             Generate a question and answer pairs in the form of {questionTypewithDescription} based on the content of the {data.course_title} course. 
             Provide a realistic and practical scenario related to {data.course_title}. Formulate a question that tests critical thinking and application of knowledge. 
-            Include coding questions and analytical questions in a certain situations.
+            Include coding examples, practical problems, and analytical questions in a certain situations.
             The generated questions should include the following:
             - {data.numOfVeryEasy} Very Easy questions
             - {data.numOfEasy} Easy questions
@@ -229,7 +243,10 @@ def createQuestions(data: QuestionFormat):
             - Average: -0.9 to 1.0
             - Hard: 1.1 to 3.0
             - Very Hard: 3.1 to 5.0
-            Ensure that the discrimination values strictly stay within these ranges and round to the nearest tenth if necessary.
+            Ensure that difficulty_type and difficulty_value follows the assigned range and values.
+            
+            For Discrimination index is ranging from 0.5 (lowest index) to 2.0(high index);
+            Ensure that the discrimination and difficulty values strictly stay within these ranges and round to the nearest tenth if necessary.
             Follow the bloombergs taxonomy for difficulty estimation. Very Easy for remember, Easy for Understand, Apply for Average, Analyze for Hard, Evaluate for Very Hard.
             Ensure the question is clear, concise, and within the context of the TOPCIT exam format.
 
