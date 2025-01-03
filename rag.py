@@ -1,22 +1,17 @@
-# for getting environment variables
-from dotenv import load_dotenv
-load_dotenv() 
-
 # for llamaparse
-from llama_parse import LlamaParse
-from llama_index.core import SimpleDirectoryReader
-
+# from llama_parse import LlamaParse
+# from llama_index.core import SimpleDirectoryReader
 # langchain
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
-from langchain_openai import ChatOpenAI
+
+# from langchain_chroma import Chroma
+# from langchain_openai import ChatOpenAI
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 # from langchain.chains import RetrievalQA
-from langchain_community.llms import Ollama
-from langchain_core.documents import Document
-from sentence_transformers import SentenceTransformer
+# from langchain_community.llms import Ollama
+# from langchain_core.documents import Document
+# from sentence_transformers import SentenceTransformer
 import chromadb.utils.embedding_functions as embedding_functions
 
 from chromadb.config import Settings
@@ -37,11 +32,22 @@ import json
 from PIL import UnidentifiedImageError
 
 #regex
-import re, os,uuid,requests,chromadb
+import re,uuid,requests
 from pydantic import BaseModel
 from datetime import datetime
 
+from setup import *
 
+#for question difficulty estimation
+import textstat
+import inflect
+import re
+import joblib
+from sklearn.preprocessing import LabelEncoder
+
+# Initialize the encoder
+# label_encoder = LabelEncoder()
+import pandas as pd
 # Configure logging
 logging.basicConfig(
     filename="app.log",  # Path to the log file
@@ -79,34 +85,138 @@ class CreateQuestionsRequest(BaseModel):
     course_title: str
     questions: list[Question]
     
-    
-api_key = os.getenv("OPENAI_API_KEY")
-ip = os.getenv('IP_ADDRESS')
 
-model_name = 'sentence-transformers/all-MiniLM-L6-v2'
-model_kwargs = {'device': 'cpu'} #use "cuda" if you have nvidia gpu otherwise use "cpu"
-encode_kwargs = {'normalize_embeddings': True}
+import nltk
+import unicodedata
+import re
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
-Sbert = HuggingFaceEmbeddings(
-    model_name=model_name,
-    model_kwargs=model_kwargs,
-    encode_kwargs=encode_kwargs
-)
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
 
-vector_store = Chroma(
-    collection_name="TopIT",
-    embedding_function=Sbert,
-    persist_directory="./chroma_db1",  # Where to save data locally, remove if not neccesary
-)
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
 
-# Load the llm 
-llm = ChatOpenAI(model_name="gpt-4o-mini",api_key=api_key)
+words_to_keep = {'how', 'what', 'where', 'why', 'when'}
+stop_words = stop_words - words_to_keep
+
+
+def clean_text(text):
+
+    text = unicodedata.normalize('NFKC', text)
+    text = text.lower()
+
+    text = re.sub(r"[^a-zA-Z\s]", "", text)
+    text = re.sub(r'\s+', ' ', text).strip() #removing extra spaces
+
+    # Tokenize, remove stopwords, and lemmatize
+    tokens = [lemmatizer.lemmatize(word) for word in text.split() if word not in stop_words]
+
+    tokens = [word for word in tokens if len(word) > 2]
+
+    return ' '.join(tokens)
 
 def cleanText(text):
     text = re.sub(r'^([0-9][0-9]|[A-Z]\)|@|©|\|\.|[0-9])\s*', '', text)
     text = re.sub(r'[+*]', '', text)
     return text
 
+def num_of_syllables(text):
+  text = re.sub(r'!(?!=)', '', text)
+  text = re.sub(r'[^a-zA-Z0-9\s\+\-\*\/\=\>\<\!]', '', text)
+#   print(text)
+  words = text.split(' ')
+  valid_operators = ['+', '-', '*', '/', '=', '>', '<', '<=', '>=', '==', '!=']
+  operator_to_word = {
+      "+": "plus",
+      "-": "minus",
+      "*": "times",
+      "/": "divided by",
+      "=": "equals",
+      ">": "greater than",
+      "<": "less than",
+      "<=": "less than or equal to",
+      ">=": "greater than or equal to",
+      "==": "equal to",
+      "!=": "not equal to"
+  }
+  words = text.split(' ')
+  syl_count = 0
+  inflector = inflect.engine()
+  for w in words:
+    if len(w) > 2 and w[:2].isupper():  # Check if the first two letters are uppercase
+          letters = list(w)  # Split the word into letters
+        #   print(letters)
+          syl_count += len(letters)
+    elif w.isupper():
+      if len(w) == 1:
+        syl_count = syl_count + 1
+        # print(w)
+      else:
+        letters = list(w)
+        # print(letters)
+        letter_count = len(letters)
+        syl_count = syl_count + letter_count
+    elif w.isdigit():
+      num_to_text = inflector.number_to_words(w)
+    #   print(num_to_text)
+      syl_count = syl_count + textstat.syllable_count(num_to_text)
+    elif w in valid_operators:
+      operator_word = operator_to_word[w]
+    #   print(operator_word)
+      syl_count = syl_count + textstat.syllable_count(operator_word)
+    else:
+    #   print(w)
+      syl_count = syl_count + textstat.syllable_count(w)
+
+  return syl_count
+
+def num_of_words(text):
+  text_count = text.split(" ")
+#   print(f"word: {len(text_count)}")
+  return len(text_count)
+
+def num_of_sentences(text):
+  sentences = re.split(r'(?<=[.?!])', text)
+  sentences = [s for s in sentences if s.strip()]
+#   print(f"sentences: {len(sentences)}")
+  return len(sentences)
+
+def flesch_reading_ease_score(total_words, total_syllables, total_sentences):
+  #  print(f"flesch: {206.835 - 1.015 * (total_words / total_sentences) - 84.6 * (total_syllables / total_words)}")
+   flesch_score = 206.835 - 1.015 * (total_words / total_sentences) - 84.6 * (total_syllables / total_words)
+   if flesch_score < 0:
+     flesch_score = 0
+   elif flesch_score > 100:
+     flesch_score = 100
+#    print(f"flesch: {flesch_score}")
+   return flesch_score
+
+def normalize(value, raw_min, raw_max, target_min, target_max):
+  return target_min + (value + raw_min) * (target_max - target_min) / (raw_max - raw_min)
+
+difficulty_ranges = {
+    "very easy": (-5.0, -3.0),
+    "easy": (-2.9, -1.0),
+    "average": (-0.9, 1.0),
+    "hard": (1.1, 3.0),
+    "very hard": (3.1, 5.0),
+}
+
+def predict_difficulty_value(text, difficulty_Level):
+  total_words = num_of_words(text)
+  total_syllables = num_of_syllables(text)
+  total_sentences = num_of_sentences(text)
+  flesch_score = flesch_reading_ease_score(total_words, total_syllables, total_sentences)
+  target_min, target_max = difficulty_ranges[difficulty_Level]
+  flesch_min, flesch_max = 0, 100
+  return round(normalize(flesch_score, flesch_min, flesch_max ,target_min, target_max), 1)
+
+# Load the trained model and TF-IDF vectorizer  
+rf_classifier = joblib.load('question_difficulty_model/random_forest_model.pkl')
+tfidf = joblib.load('question_difficulty_model/tfidf_vectorizer.pkl')
 
 def queryHierarchicalIndex(query_text, level=None):
     # Define filter criteria if the level is specified
@@ -146,8 +256,11 @@ def ModelQuerywithRAG(input, course_id):
     
     # Define prompt template
     template = """
-    You are a Information Technology College Teacher that is handling Reviewer for Information Technology certification reviewers. 
-    You should create an questions that is a college level for Test of Practical Competency in IT which is application, situational, and textual based questions.
+    TOPCIT (Test of Practical Competency in IT) is designed to assess competencies in practical IT skills such as programming, algorithm problem-solving, and 
+    IT business understanding. TOPCIT questions are typically scenario-based, requiring critical thinking and practical application of knowledge in areas like 
+    software development, database management, algorithms, and IT ethics.
+    You are a Information Technology College Teacher that is handling Reviewer for Information Technology certification reviewers.
+    You are tasked to create questions for simulated exams for topcit.
 
     <context>
     {context}
@@ -167,64 +280,72 @@ def ModelQuerywithRAG(input, course_id):
     return response['answer']
 
 
-multiple_choice_single_answer = """{
+multiple_choice_single = """{
     "question": "What is the primary function of a compiler?",
-    "questionType": "Multiple Choice - Single Answer",
-    "correctAnswer": "Compilation",
-    "difficulty": "very easy",
+    "questionType": "Multiple Choice - Single",
+    "answer": "Compilation",
+    "difficulty_level": "very easy",
+    "difficulty_value: -4.0,
     "discrimination": -4.5,
-    "choices": [
-        {"choice_1": "Execution"},
-        {"choice_2": "Compilation"},
-        {"choice_3": "Interpretation"},
-        {"choice_4": "Debugging"}
-    ]
+    "choices": ["Execution","Compilation","Interpretation","Debugging"]
 },"""
 
-multiple_choice_multiple_answer = """{
+multiple_choice_many = """{
     "question": "Which of the following programming languages is known for its simplicity and ease of use?",
-    "questionType": "Multiple Choice - Multiple Answer",
-    "correctAnswer": [
-        {"Correct_answer_1": "Python"},
-        {"Correct_answer_2": "Ruby"}
-    ],
-    "difficulty": "hard",
+    "questionType": "Multiple Choice - Many",
+    "answer": ["Python","Ruby"],
+    "difficulty_level": "easy",
+    "difficulty_value: -2.9,
     "discrimination": 2.2,
-    "choices": [
-        {"choice_1": "Java"},
-        {"choice_2": "C++"},
-        {"choice_3": "Python"},
-        {"choice_4": "Ruby"}
-    ]
+    "choices": ["Java","C++","Python","Ruby"]
 },"""
 
 identification = """ {
     "question": "What is the term for a program that translates one programming language into another?",
     "questionType": "Identification",
-    "correctAnswer": "Interpreter",
-    "difficulty": "Very Hard",
+    "answer": "Interpreter",
+    "difficulty_level": "very easy",
+    "difficulty_value: -4.0,
     "discrimination": 4.5
 }"""
  
-    
-questionType = ['Identification','Multiple Choice - Single Answer','Multiple Choice - Many Answer']
-                    
+questionType = ['Identification','Multiple Choice - Single','Multiple Choice - Many']
+
+correct_keys_for_multiple_choice = {
+        "question",
+        "questionType",
+        "answer",
+        "difficulty_level",
+        "difficulty_value",
+        "discrimination",
+        "choices"
+    }
+
+correct_keys_for_identification = {
+        "question",
+        "questionType",
+        "answer",
+        "difficulty_level",
+        "difficulty_value",
+        "discrimination",
+    }
+
 def validate_question_format(result, question_type):
     # Define correct format based on question type
-    if question_type == "Multiple Choice - Single Answer":
+    if question_type == "Multiple Choice - Single":
         correct_format = {
             "question": str,
             "questionType": str,
-            "correctAnswer": str,
+            "answer": str,
             "difficulty": str,
             "discrimination": float,
             "choices": list
         }
-    elif question_type == "Multiple Choice - Multiple Answer":
+    elif question_type == "Multiple Choice - Many":
         correct_format = {
             "question": str,
             "questionType": str,
-            "correctAnswer": list,
+            "answer": list,
             "difficulty": str,
             "discrimination": float,
             "choices": list
@@ -233,7 +354,7 @@ def validate_question_format(result, question_type):
         correct_format = {
             "question": str,
             "questionType": str,
-            "correctAnswer": str,
+            "answer": str,
             "difficulty": str,
             "discrimination": float
         }
@@ -241,18 +362,55 @@ def validate_question_format(result, question_type):
     for key, expected_type in correct_format.items():
         if key not in result or not isinstance(result[key], expected_type):
             return False 
-    
+
     return True 
+
+
+def check_answers(result, questionType):
+    #checking for answers 
+    #pulihi lang ang "identification" sa ipass sa parameter nga questionType
+    if questionType == "identification":
+        answer = result['answer'].split()
+        if not (1 <= len(answer) < 3):
+            raise ValueError(f"Identification answer has {len(answer)} words; it should be atleast 1 or at most 2..")
+        for key in result:
+            if key not in correct_keys_for_identification:
+                raise ValueError(f'{key} not in the correct keys for identifcation')
+
+
+    #pulihi lang ang "multiple_choice_multiple_answer" sa ipass sa parameter nga questionType
+    if questionType == "multiple_choice_multiple_answer":
+        correct_answers_len = len(result['answer'])
+        if correct_answers_len < 2: 
+            raise ValueError("Multiple choice multiple answers is not atleast 2")
+        
+        for answer in result['answer']:
+            if answer not in result['choices']:
+                raise ValueError(f"Correct answer '{answer}' is not found in the choices.")
+        for key in result:
+            if key not in correct_keys_for_multiple_choice:
+                raise ValueError(f'{key} not in the correct keys for multiple choice question type')
+
+    #pulihi lang ang "multiple_choice_multiple_answer" sa ipass sa parameter nga questionType
+    if questionType == "multiple_choice_single_answer":
+        correct_answer = result["answer"]
+        if correct_answer not in result['choices']:
+            raise ValueError(f"Correct answer '{correct_answer}' is not found in the choices.")
+        for key in result:
+            if key not in correct_keys_for_multiple_choice:
+                raise ValueError(f'{key} not in the correct keys for multiple choice question type')
+        
+
 
 def createQuestions(data: QuestionFormat):
     # Define the question type
-    if data.questionType == "multiple-choice-single":
-        example = multiple_choice_single_answer
-        questionTypewithDescription = "Multiple Choice - Single Answer"
-    elif data.questionType == "multiple-choice-many":
-        example = multiple_choice_multiple_answer
-        questionTypewithDescription = "Multiple Choice - Multiple Answer (correct answers should be between 2 - 3)"
-    elif data.questionType == "identification":
+    if data.questionType == "Multiple Choice - Single":
+        example = multiple_choice_single
+        questionTypewithDescription = "Multiple Choice - Single"
+    elif data.questionType == "Multiple Choice - Many":
+        example = multiple_choice_many
+        questionTypewithDescription = "Multiple Choice - Many must have atleast 2 answers and don't put only 1 answer"
+    elif data.questionType == "Identification":
         example = identification
         questionTypewithDescription = "Identification must have a maximum of 2 words in 1 correct answer"
 
@@ -357,7 +515,6 @@ def createQuestions(data: QuestionFormat):
             result = json.loads(fixed_text)
             print(f"result : \n {result}")
         
-           
             if (
                 counters['countOfVeryEasy'] == data.numOfVeryEasy and 
                 counters['countOfEasy'] == data.numOfEasy and 
@@ -387,7 +544,7 @@ def createQuestions(data: QuestionFormat):
                 # if result['questions'][i]['question'] 
                 predicted_class = rf_classifier.predict(tfidf.transform([text]))[0]
                 difficulty_value  = predict_difficulty_value(text, predicted_class)
-                print(f"\nllm prediction: {res['difficulty']} predicted class : {predicted_class}")
+                print(f"\nllm prediction: {res['difficulty_level']} predicted class : {predicted_class}")
 
                 #if res['question'] in list of questions
                 # continue
@@ -408,7 +565,8 @@ def createQuestions(data: QuestionFormat):
                             text
                             ]
                         )
-                        res['difficulty'] = difficulty_value
+                        res['difficulty_level'] = predicted_class
+                        res['difficulty_value'] = difficulty_value
                         # res['difficulty'] = predicted_class
                         result_questions["questions"].append(res)
                         counters['countOfVeryEasy']+=1
@@ -423,7 +581,8 @@ def createQuestions(data: QuestionFormat):
                             text
                             ]
                         )
-                        res['difficulty'] = difficulty_value
+                        res['difficulty_level'] = predicted_class
+                        res['difficulty_value'] = difficulty_value
                         result_questions["questions"].append(res)
                         counters['countOfEasy']+=1
                         print(f"\neasy: {counters['countOfEasy']}")
@@ -437,7 +596,8 @@ def createQuestions(data: QuestionFormat):
                             text
                             ]
                         )
-                        res['difficulty'] = difficulty_value
+                        res['difficulty_level'] = predicted_class
+                        res['difficulty_value'] = difficulty_value
                         result_questions["questions"].append(res)
                         counters['countOfAverage']+=1
                         print(f"\naverage: {counters['countOfAverage']}")
@@ -451,7 +611,8 @@ def createQuestions(data: QuestionFormat):
                             text
                             ]
                         )
-                        res['difficulty'] = difficulty_value
+                        res['difficulty_level'] = predicted_class
+                        res['difficulty_value'] = difficulty_value
                         result_questions["questions"].append(res)
                         counters['countOfHard']+=1
                         print(f"\nhard: {counters['countOfHard']}")
@@ -465,7 +626,8 @@ def createQuestions(data: QuestionFormat):
                             text
                             ]
                         )
-                        res['difficulty'] = difficulty_value
+                        res['difficulty_level'] = predicted_class
+                        res['difficulty_value'] = difficulty_value
                         result_questions["questions"].append(res)
                         counters['countOfVeryHard']+=1
                         print(f"\nvery hard: {counters['countOfVeryHard']}")
@@ -483,19 +645,10 @@ def createQuestions(data: QuestionFormat):
                     counters['countOfVeryHard'] = 0
                     return result_questions
         
-        # Validate the results
-        # validate_keys(result)
-        # validate_question_difficulty(result, question_level)
-        # check_question_counts(result, question_level)
-        # validate_question_content(result, questionType)
-        
-            
-        # print(res)
-        # Save the results
-        # return res
 
     except (json.JSONDecodeError, ValueError) as e:
-        return f"Error processing the response: {e}"
+        print(f"Error processing the response: {e}")
+        # continue
 
     
 
@@ -536,14 +689,14 @@ def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     
     try:
         response = requests.post(url, json=all_questions)
-        logging.info(response)
+        logging.info(f"Response: {response.status_code} - {response.text}")
         if response.status_code == 200:
             return "Successfully sent the data to Laravel."
         else:
             return f"Failed to send data: {response.status_code} - {response.text}"
-    
     except requests.exceptions.RequestException as e:
-        return f"Error occurred while sending data to Laravel: {e}"
+        logging.error(f"Error while sending data to Laravel: {e}")
+        return "Failed to send data to Laravel due to a connection error."
 
 
 # if __name__ == "__main__":
