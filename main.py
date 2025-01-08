@@ -3,16 +3,15 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel
-from typing import Optional
-
-from typing import Dict, Any
-from functions import *
+from pdf_processing import actual_pdf_processing_function,process_content
 from rag import *
 from setup import *
+from typing import List
+from models import CreateQuestionsRequest, QueryRequest, ModuleModel,CourseModel
 import nest_asyncio
-import time
 import asyncio
+import shutil
+import time
 
 nest_asyncio.apply()
 
@@ -24,72 +23,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    filename="app.log",  # Path to the log file
-    level=logging.INFO,  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Log format
-    datefmt="%Y-%m-%d %H:%M:%S",  # Date format for log messages
-)
-
-class QueryRequest(BaseModel):
-    query: str
-
-class CourseDataRequest(BaseModel):
-    course_data: dict
-    
-# Define the expected structure of the input JSON using Pydantic
-# class CreateQuestionsRequest(BaseModel):
-#     course_id: int
-#     course_title: str
-#     questionType: str
-#     numOfVeryEasy: int
-#     numOfEasy: int
-#     numOfAverage: int
-#     numOfHard: int
-#     numOfVeryHard: int
-    
-class ContentModel(BaseModel):
-    content_id: int
-    type: str  # Enum could also be used here
-    description: str
-    order: int
-    caption: Optional[str] = None
-    
-class SubsectionModel(BaseModel):
-    subsection_id: int
-    title: Optional[str] = None
-    contents: List[ContentModel]  # List of content items
-
-class SectionModel(BaseModel):
-    section_id: int
-    title: Optional[str] = None
-    contents: List[ContentModel]
-    subsections: List[SubsectionModel]
-
-class LessonModel(BaseModel):
-    lesson_id: int
-    title: Optional[str] = None
-    contents: List[ContentModel]
-    sections: List[SectionModel]
-
-class ModuleModel(BaseModel):
-    module_id: int
-    course_id: int  # Associate the module with a course
-    title: Optional[str] = None
-    contents: List[ContentModel]
-    lessons: List[LessonModel]
-    
-class CourseModel(BaseModel):
-    course_id: int
-    title: str
-    description: str
     
 @app.get("/view-data/")
 def view_data():
     # Access the stored documents from the Chroma collection
     all_data = vector_store._collection.get(include=["documents"])  # Retrieves all documents
+    return {"data": all_data["documents"]}
+
+@app.get("/view-questions/")
+def view_data():
+    # Access the stored documents from the Chroma collection
+    all_data = vector_store_questions._collection.get(include=["documents"])  # Retrieves all documents
     return {"data": all_data["documents"]}
 
 @app.post("/process-pdf/")
@@ -355,6 +299,26 @@ async def reset_collection():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+@app.post("/reset_question_collection/")
+async def reset_collection():
+    try:
+        global vector_store_questions
+        # Get all documents in the collection
+        all_documents = vector_store_questions._collection.get()
+
+        # Extract document IDs from the 'ids' key
+        document_ids = all_documents.get('ids', [])
+
+        # Delete all documents by their IDs
+        if document_ids:
+            vector_store_questions._collection.delete(ids=document_ids)
+
+        return {"message": "All documents cleared from the collection successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
 
     
 

@@ -22,3 +22,7 @@ llama-index
 langchain-community
 llama_parse
 layoutparser
+scikit-learn
+textstat
+inflect
+nltk
