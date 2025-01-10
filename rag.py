@@ -480,16 +480,17 @@ def check_answers(result, questionType):
 #         logging.error(f"Unexpected error: {e}")
 #         return {}
 
-def createQuestions(data, example, description):
+def createQuestions(data):
     try:
         max_iterations = 100
         iteration = 0
-        DEFAULT_QUESTIONS_PER_DIFFICULTY = 50
+        DEFAULT_QUESTIONS_PER_DIFFICULTY = 20
         result_questions = {
             "course_id": data.course_id,
             "course_title": data.course_title,
             "questions": [],
         }
+        
         needed = {
             "Very Easy": data.numOfVeryEasy,
             "Easy": data.numOfEasy,
@@ -497,6 +498,7 @@ def createQuestions(data, example, description):
             "Hard": data.numOfHard,
             "Very Hard": data.numOfVeryHard,
         }
+        
         existing_questions = set()
 
         while iteration < max_iterations:
@@ -519,23 +521,72 @@ def createQuestions(data, example, description):
             logging.info(f"Current needs by difficulty: {needed_difficulties}")
 
             instructions = f"""
-                Iteration {iteration}: Generate questions and answers in the form of {description} based on the content of the {data.course_title} course. 
+                Iteration {iteration}: Generate questions and answers the based on the content of the {data.course_title} course. 
                 Provide a realistic and practical scenario related to {data.course_title}. Formulate a question that tests critical thinking and application of knowledge. 
                 Include coding examples, practical problems, and analytical questions in a certain situations.
-                Generate 20 questions per type. The types of questions needed are:
+                Generate {DEFAULT_QUESTIONS_PER_DIFFICULTY} questions per difficulty. The types of questions needed are:
                 {batch_needed_str}
                 
-                Use this as a guideline for generating questions
-                Blooms Level | Difficulty Level | Description 
-                Remember | Very Easy | Retrieving relevant knowledge from long-term memory. 
-                Understand | Easy | Constructing meaning from oral, written, and graphic messages. 
-                Apply | Average | Carrying out or using a procedure in a given situation.
-                Analyze | Hard | Breaking material into constituent parts and detecting how the parts relate to one another and to an overall structure or purpose. 
-                Evaluate | Very Hard | Making judgments based on criteria and standards.
+                For Very Easy and Easy,Average, you can use Identification or Multiple Choice Formats.
+                For Hard and Very Hard, use only Multiple Choice format.
                 
+                Allowed Question Format:
+                {QUESTION_TYPES}
                 
-                Generate the question base on the Blooms Level not the difficulty.
-                                       
+                Rules for each question format:
+                {QUESTION_RULES}
+                                
+                The generate questions must be based on Bloom's Taxonomy levels.
+                - Very Easy: Remember
+                Retrieving relevant knowledge from long-term memory. 
+                Sample Questions: 
+                1. Name the data type in Python used to store a collection of unique items.
+                2. What is the default port for HTTP connections in web servers?
+                3. Which of the following is an example of a relational database?
+                4. What is the command to list files and directories in Linux?
+                5. Which layer of the OSI model is responsible for routing data between networks?
+                
+                - Easy: Understand
+                Constructing meaning from oral, written, and graphic messages. 
+                Sample Questions: 
+                1. Explain the difference between client-side and server-side scripting.
+                2. Which of the following best describes a foreign key in a relational database?
+                3. What is the purpose of normalization in database design?
+                4. Which statement about REST APIs is correct?
+                5. In object-oriented programming, what do you understood by encapsulation?
+                
+                - Average: Apply
+                Sample Questions:
+                1. If you were to write a SQL query to retrieve all employees earning more than $50,000 from a table named employees, which would you choose?
+                2. Which of the following algorithms would you use to sort a large dataset efficiently?
+                3. What is the output of the following Python code: `a = [1, 2, 3, 4]; print(a[::-1])`?
+                4. Solve a budget overrun in party planning by showing how to reduce costs on decorations or catering. Choose the answer.
+                5. Consider the following processes arrival time and burst time as shown below in table. Calculate average waiting time and average turn aroundtime if Quantum time is 2. Use Round Robin Algorithm. Choose the answer.
+
+                - Hard: Analyze
+                1. Given this function, identify the time complexity: `def sum_array(arr): for i in range(len(arr)): for j in range(len(arr)): print(i, j)`
+                2."A team is troubleshooting a web application that frequently crashes during peak hours. They discover the following possible causes: Database queries taking longer than expected.
+                    Insufficient server resources allocated for the application.
+                    Excessive logging during high traffic.
+                    Unoptimized API endpoints.
+                    Analyze the potential causes and determine which one is the most likely root cause of the crashes. Support your answer with logical reasoning."
+                3. Your team is tasked with designing a cooling system for an electric vehicle battery pack to maintain optimal operating temperatures. Compare the effectiveness of using air cooling versus liquid cooling systems in dissipating heat from the battery cells while minimizing energy consumption and system weight.
+                4. "A company is planning to implement a microservices architecture for its web application. The team identifies the following challenges:
+                    Difficulty in setting up inter-service communication.
+                    Increased overhead in managing multiple services.
+                    Latency issues during service calls under high traffic.
+                    Inconsistent data synchronization across services.
+                    Analyze these challenges and determine which one poses the greatest risk to system reliability."
+                5. Compare the features and performance of different recommendation systems (e.g., collaborative filtering, content-based filtering, matrix factorization) in personalized recommendation tasks.
+
+                
+                - Very Hard: Evaluate
+                1. Evaluate the pros and cons of using NoSQL databases over relational databases.
+                2. Which of the following factors is MOST important when choosing a cloud service provider?
+                3. What is your recommendation for improving the performance of this SQL query: `SELECT * FROM employees WHERE department = 'IT'`;
+                4. What would you recommend for addressing data synchronization issues between an analytics dashboard and its backend?
+                5. Which programming paradigm would you argue is most suitable for a project requiring high concurrency, and why?
+                         
                 Ensure the question is clear, concise, and similar to those in the TOPCIT exam.
 
                 It should be stored in a JSON format like this and don't put any text beside this:
@@ -544,7 +595,7 @@ def createQuestions(data, example, description):
                     "course_id": "{data.course_id}",
                     "course_title":"{data.course_title}",
                     "questions": [
-                        {example}
+                        {EXAMPLE}
                     ]
                 }}
             """
@@ -592,29 +643,52 @@ def createQuestions(data, example, description):
 
                 # Predict difficulty type and value
                 try:
-                    predicted_class = preprocess_and_predict(question_text,tfidf,reference_embeddings)
+                    # Get probabilities for all classes
+                    predicted_probs = preprocess_and_predict(question_text, tfidf, reference_embeddings)
+
+                    # Sort classes by predicted probabilities in descending order
+                    sorted_classes = sorted(predicted_probs.items(), key=lambda x: x[1], reverse=True)
+
+                    # Check the top prediction's probability
+                    top_class, top_probability = sorted_classes[0]
+
+                    # Use top prediction if its probability is above the threshold
+                    if top_probability > 0.8:
+                        predicted_class = top_class
+                    else:
+                        # Otherwise, find the first available class (considering second-highest, etc.)
+                        for predicted_class, probability in sorted_classes:
+                            if predicted_class in needed and needed[predicted_class] > 0:
+                                break
+                        else:
+                            logging.warning(f"No suitable difficulty type found for question '{question_text}'.")
+                            continue
+
+                    # Predict difficulty value based on the selected class
                     difficulty_value = predict_difficulty_value(question_text, predicted_class)
-                    # Check if the predicted class is still needed
-                    if predicted_class in needed and needed[predicted_class] > 0:
-                        # Add to vector store
-                        vector_store_questions.add_texts(texts=[question_text])
-                        existing_questions.add(question_text)
 
-                        # Update result with difficulty information
-                        res.update({
-                            "difficulty_type": predicted_class,
-                            "difficulty_value": difficulty_value,
-                            "discrimination_index": get_discrimination(predicted_class),
-                        })
+                    # Add to vector store
+                    vector_store_questions.add_texts(texts=[question_text])
+                    existing_questions.add(question_text)
 
-                        # Append question to results and update needed counts
-                        result_questions["questions"].append(res)
-                        needed[predicted_class] -= 1
-                        questions_added += 1
-                        logging.info(f"Added question of difficulty {predicted_class}. Remaining: {needed[predicted_class]}")
+                    # Update result with difficulty information
+                    res.update({
+                        "difficulty_type": predicted_class,
+                        "difficulty_value": difficulty_value,
+                        "discrimination_index": get_discrimination(predicted_class),
+                    })
+
+                    # Append question to results and update needed counts
+                    result_questions["questions"].append(res)
+                    needed[predicted_class] -= 1
+                    questions_added += 1
+
+                    logging.info(f"Added question of difficulty {predicted_class}. Remaining: {needed[predicted_class]}")
+
                 except Exception as e:
-                        logging.error(f"Error processing question '{question_text}': {e}")
-                        continue
+                    logging.error(f"Error processing question '{question_text}': {e}")
+                    continue
+
                 
                 logging.info(f"Added {questions_added} questions in this iteration")
                 
@@ -637,24 +711,17 @@ def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     # Convert JSON input to Python objects
     parsed_data = [CreateQuestionsRequest.parse_obj(course) for course in requests_list]
     for course in parsed_data:
-        logging.info(f"Accessing course: {course.course_title}")
-        for question in course.questions:
-
-            # getting the example and description base on question type
-            example, description = get_question_type_data(question.type)
-
-            data = QuestionFormat(
-                course_id=course.course_id,
-                course_title=course.course_title,
-                questionType=question.type,
-                numOfVeryEasy=question.difficulty.numOfVeryEasy,
-                numOfEasy=question.difficulty.numOfEasy,
-                numOfAverage=question.difficulty.numOfAverage,
-                numOfHard=question.difficulty.numOfHard,
-                numOfVeryHard=question.difficulty.numOfVeryHard,
-            )
-            questions = createQuestions(data, example, description)
-            all_questions.append(questions)
+        data = QuestionFormat(
+            course_id=course.course_id,
+            course_title=course.course_title,
+            numOfVeryEasy=course.difficulty.numOfVeryEasy,
+            numOfEasy=course.difficulty.numOfEasy,
+            numOfAverage=course.difficulty.numOfAverage,
+            numOfHard=course.difficulty.numOfHard,
+            numOfVeryHard=course.difficulty.numOfVeryHard,
+        )
+        questions = createQuestions(data)
+        all_questions.append(questions)
 
     # Ensure the folder for storing JSON files exists
     folder_path = "./json_files/"

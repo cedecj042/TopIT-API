@@ -5,7 +5,6 @@ from typing import List, Dict, Any,Optional
 class QuestionFormat(BaseModel):
     course_id: int
     course_title: str
-    questionType: str
     numOfVeryEasy: int
     numOfEasy: int
     numOfAverage: int
@@ -29,7 +28,7 @@ class Question(BaseModel):
 class CreateQuestionsRequest(BaseModel):
     course_id: int
     course_title: str
-    questions: list[Question]
+    difficulty: Difficulty
 
 class ContentModel(BaseModel):
     content_id: int

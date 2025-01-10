@@ -72,8 +72,8 @@ tfidf = joblib.load('models/tfidf_vectorizer.pkl')
 scaler = joblib.load('models/scaler.pkl')
 # loaded_keywords = joblib.load('models/category_keywords.pkl')
 
-with open('models/category_keywords.pkl', 'rb') as file:
-    loaded_keywords = pickle.load(file)
+# with open('models/category_keywords.pkl', 'rb') as file:
+#     loaded_keywords = pickle.load(file)
 
 # Load the llm 
 llm = ChatOpenAI(model_name="gpt-4o-mini",api_key=api_key)

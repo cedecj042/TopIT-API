@@ -157,107 +157,133 @@ def checkExactMatch(query_text):
 
   return exact_match
 
-def extract_keyword_features_for_all_categories(text):
-    features = {}
-    tokens = text.split()
-    for category, keywords in loaded_keywords.items():
-        keyword_count = sum(1 for token in tokens if token in keywords)
-        keyword_frequency = keyword_count / len(tokens) if len(tokens) > 0 else 0
-        features[f'keyword_count_{category}'] = keyword_count
-        features[f'keyword_frequency_{category}'] = keyword_frequency
-    return features
-
-
-def preprocess_text(text):
+def preprocess_text_with_code(text):
     """
-    Preprocess text to generate both tokenized and preprocessed versions.
-    1. Lowercase the text for consistency.
-    2. Remove all symbols using regex.
-    3. Tokenized: Original text split into tokens.
-    4. Preprocessed: Lowercased text without stopwords or special characters.
+    Preprocess text with embedded code snippets.
+    - Extract code enclosed in backticks (`).
+    - Remove stopwords from the natural text except for important ones (e.g., 'who', 'what').
+    - Concatenate preprocessed text and code snippets into a single sentence.
+    - Returns tokens and the combined preprocessed text.
     """
-    # Convert text to lowercase
-    text = text.lower()
-
-    # Remove all symbols using regex (keep only alphanumeric and spaces)
-    text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
-
-    # Tokenize the text
-    tokens = word_tokenize(text)
-
-    # Remove stopwords
+    # Step 1: Extract code snippets enclosed in backticks
+    code_snippets = re.findall(r'`.*?`', text)  # Matches text within backticks
+    
+    # Step 2: Remove code snippets from the main text for preprocessing
+    text_without_code = re.sub(r'`.*?`', '', text)  # Remove code enclosed in backticks
+    
+    # Step 3: Preprocess the natural language text
+    # Lowercase and remove non-alphanumeric characters (except spaces)
+    text_without_code = re.sub(r'[^a-zA-Z0-9\s]', '', text_without_code.lower())
+    
+    tokens = word_tokenize(text_without_code)
+    
+    # Define stopwords and retain important words
     stop_words = set(stopwords.words('english'))
-    important_words = {"who", "what", "where", "how", "why", "when"}
-    stop_words = stop_words - important_words
-    preprocessed_tokens = [word for word in tokens if word not in stop_words]
-
-    # Join tokens for clean preprocessed text
+    # important_words = {"who", "what", "where", "how", "why", "when","which"}
+    # stop_words = stop_words - important_words
+    
+    # Remove stopwords from tokens
+    filtered_words = [word for word in tokens if word not in stop_words]
+        
+    preprocessed_tokens = [lemmatizer.lemmatize(word) for word in filtered_words if word.isalpha()]
+    
+    # Combine preprocessed text and code snippets
     preprocessed_text = " ".join(preprocessed_tokens)
+    code_text = " ".join(code_snippets)  # Combine all code snippets into a single string
+    
+    # Step 4: Combine natural language and code for the final result
+    combined_text = f"{preprocessed_text} {code_text}".strip()
 
-    return tokens, preprocessed_text
+    # Return both the tokens and the final preprocessed text
+    return preprocessed_tokens, combined_text
+  
 
+# def preprocess_and_predict(question, tfidf_vectorizer,example_embeddings):
+#     """
+#     Extract features from a row using preprocessed and tokenized columns.
+#     """
+#     # Retrieve preprocessed and tokenized text
+#     tokenized_question,preprocessed_question = preprocess_text_with_code(question)
 
+#     # --- Initialize feature dictionary ---
+#     features = {}
+
+#     # --- Textual Features ---
+#     tfidf_vector = tfidf_vectorizer.transform([preprocessed_question]).toarray()[0]
+#     features.update({f'tfidf_{i}': val for i, val in enumerate(tfidf_vector)})
+
+#     # --- Text Length Features ---
+#     features['word_count'] = len(tokenized_question)
+#     features['sentence_count'] = len(sent_tokenize(question))  # Use original text for sentence count
+#     features['avg_word_length'] = np.mean([len(word) for word in tokenized_question]) if tokenized_question else 0
+#     features['readability'] = flesch_kincaid_grade(question) if question.strip() else 0
+
+#     # --- Lexical Complexity ---
+#     unique_words = len(set(tokenized_question))
+#     features['unique_word_count'] = unique_words
+#     features['vocabulary_diversity'] = unique_words / len(tokenized_question) if len(tokenized_question) > 0 else 0
+#     features['complex_word_count'] = sum(syllable_count(word) > 3 for word in tokenized_question)
+
+#     # --- Semantic Similarity Features ---
+#     question_embedding = embedding_model.encode(preprocessed_question)
+#     similarity_scores = compute_semantic_similarity_from_embedding(question_embedding, example_embeddings)
+#     features.update(similarity_scores)
+    
+#     # --- Convert to DataFrame ---
+#     feature_df = pd.DataFrame([features])
+
+#     # Fit and transform the training features
+#     pred_normalized = scaler.transform(feature_df)
+    
+#     # --- Make Prediction ---
+#     prediction = classifier_model.predict_proba(pred_normalized)
+#     # print(prediction)
+#     return match_difficulty(prediction)
+
+# --- Updated preprocess_and_predict function ---
 def preprocess_and_predict(question, tfidf_vectorizer, example_embeddings):
     """
-    Preprocess a new question and make a prediction using the trained pipeline.
-    This function extracts features directly for prediction.
-    Args:
-        question (str): Input question as a string.
-        tfidf_vectorizer: Pre-fitted TF-IDF vectorizer.
-        example_embeddings (dict): Precomputed example embeddings for semantic similarity.
-    Returns:
-        prediction: Predicted class for the input question.
+    Preprocess and predict class probabilities for a given question.
     """
-    # --- Preprocessing ---
-    # Lowercase and clean the input question
-    question = question.lower()
-    question_clean = re.sub(r'[^a-zA-Z0-9\s]', '', question)
-
-    # Tokenize and remove stopwords
-    tokens = word_tokenize(question_clean)
-    stop_words = set(stopwords.words('english'))
-    preprocessed_tokens = [word for word in tokens if word not in stop_words]
-
-    # Reconstruct preprocessed question
-    preprocessed_question = " ".join(preprocessed_tokens)
+    # Retrieve preprocessed and tokenized text
+    tokenized_question, preprocessed_question = preprocess_text_with_code(question)
 
     # --- Initialize feature dictionary ---
     features = {}
-
-    # --- Keyword Features ---
-    # keyword_features = extract_keyword_features_for_all_categories(preprocessed_question)
-    # features.update(keyword_features)
 
     # --- Textual Features ---
     tfidf_vector = tfidf_vectorizer.transform([preprocessed_question]).toarray()[0]
     features.update({f'tfidf_{i}': val for i, val in enumerate(tfidf_vector)})
 
     # --- Text Length Features ---
-    features['word_count'] = len(tokens)
-    features['sentence_count'] = len(sent_tokenize(question))  # Original question for sentence count
-    features['avg_word_length'] = np.mean([len(word) for word in tokens]) if tokens else 0
+    features['word_count'] = len(tokenized_question)
+    features['sentence_count'] = len(sent_tokenize(question))  # Use original text for sentence count
+    features['avg_word_length'] = np.mean([len(word) for word in tokenized_question]) if tokenized_question else 0
     features['readability'] = flesch_kincaid_grade(question) if question.strip() else 0
 
     # --- Lexical Complexity ---
-    unique_words = len(set(tokens))
+    unique_words = len(set(tokenized_question))
     features['unique_word_count'] = unique_words
-    features['vocabulary_diversity'] = unique_words / len(tokens) if len(tokens) > 0 else 0
-    features['complex_word_count'] = sum(syllable_count(word) > 3 for word in tokens)
+    features['vocabulary_diversity'] = unique_words / len(tokenized_question) if len(tokenized_question) > 0 else 0
+    features['complex_word_count'] = sum(syllable_count(word) > 3 for word in tokenized_question)
 
     # --- Semantic Similarity Features ---
     question_embedding = embedding_model.encode(preprocessed_question)
     similarity_scores = compute_semantic_similarity_from_embedding(question_embedding, example_embeddings)
     features.update(similarity_scores)
-  
+    
     # --- Convert to DataFrame ---
     feature_df = pd.DataFrame([features])
 
-    # Fit and transform the training features
+    # Normalize features
     pred_normalized = scaler.transform(feature_df)
     
     # --- Make Prediction ---
-    prediction = classifier_model.predict(pred_normalized)
-    return match_difficulty(prediction[0])
+    prediction_probs = classifier_model.predict_proba(pred_normalized)[0]  # Probability for each class
+    print(f"Raw model probabilities: {prediction_probs}")
+    predicted_probs = {match_difficulty(i): prob for i, prob in enumerate(prediction_probs)}
+
+    return predicted_probs
 
 def compute_semantic_similarity_from_embedding(question_embedding, example_embeddings):
     """
@@ -311,10 +337,10 @@ def flesch_kincaid_grade(text):
   
 def match_difficulty(prediction):
   difficulty_mapping = {
-      1: "Very Easy",
-      2: "Easy",
-      3: "Average",
-      4: "Hard",
-      5: "Very Hard"
+      0: "Very Easy",
+      1: "Easy",
+      2: "Average",
+      3: "Hard",
+      4: "Very Hard"
   }
   return difficulty_mapping.get(prediction, "Unknown Difficulty")  # Default for invalid input

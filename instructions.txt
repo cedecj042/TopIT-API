@@ -1,0 +1,43 @@
+The generate questions must be based on Bloom's Taxonomy levels.
+                - Very Easy: Remember
+                Retrieving relevant knowledge from long-term memory. 
+                - Easy: Understand
+                Constructing meaning from oral, written, and graphic messages. 
+                Sample Questions: 
+                1. Explain the difference between client-side and server-side scripting.
+                2. Which of the following best describes a foreign key in a relational database?
+                3. What is the purpose of normalization in database design?
+                4. Which statement about REST APIs is correct?
+                5. In object-oriented programming, what do you understood by encapsulation?
+                
+                - Average: Apply
+                Sample Questions:
+                1. If you were to write a SQL query to retrieve all employees earning more than $50,000 from a table named employees, which would you choose?
+                2. Which of the following algorithms would you use to sort a large dataset efficiently?
+                3. What is the output of the following Python code: `a = [1, 2, 3, 4]; print(a[::-1])`?
+                4. Solve a budget overrun in party planning by showing how to reduce costs on decorations or catering. Choose the answer.
+                5. Consider the following processes arrival time and burst time as shown below in table. Calculate average waiting time and average turn aroundtime if Quantum time is 2. Use Round Robin Algorithm. Choose the answer.
+
+                - Hard: Analyze
+                1. Given this function, identify the time complexity: `def sum_array(arr): for i in range(len(arr)): for j in range(len(arr)): print(i, j)`
+                2."A team is troubleshooting a web application that frequently crashes during peak hours. They discover the following possible causes: Database queries taking longer than expected.
+                    Insufficient server resources allocated for the application.
+                    Excessive logging during high traffic.
+                    Unoptimized API endpoints.  
+                    Analyze the potential causes and determine which one is the most likely root cause of the crashes. Support your answer with logical reasoning."
+                3. Your team is tasked with designing a cooling system for an electric vehicle battery pack to maintain optimal operating temperatures. Compare the effectiveness of using air cooling versus liquid cooling systems in dissipating heat from the battery cells while minimizing energy consumption and system weight.
+                4. "A company is planning to implement a microservices architecture for its web application. The team identifies the following challenges:
+                    Difficulty in setting up inter-service communication.
+                    Increased overhead in managing multiple services.
+                    Latency issues during service calls under high traffic.
+                    Inconsistent data synchronization across services.
+                    Analyze these challenges and determine which one poses the greatest risk to system reliability."
+                5. Compare the features and performance of different recommendation systems (e.g., collaborative filtering, content-based filtering, matrix factorization) in personalized recommendation tasks.
+
+                
+                - Very Hard: Evaluate
+                1. Evaluate the pros and cons of using NoSQL databases over relational databases.
+                2. Which of the following factors is MOST important when choosing a cloud service provider?
+                3. What is your recommendation for improving the performance of this SQL query: `SELECT * FROM employees WHERE department = 'IT'`;
+                4. What would you recommend for addressing data synchronization issues between an analytics dashboard and its backend?
+                5. Which programming paradigm would you argue is most suitable for a project requiring high concurrency, and why?
