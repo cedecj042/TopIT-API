@@ -6,6 +6,7 @@ from langchain_chroma import Chroma
 from langchain_community.chat_models import ChatOpenAI
 from langchain.schema import Document
 from sentence_transformers import SentenceTransformer
+
 # for llamaparse
 from llama_parse import LlamaParse
 from llama_index.core import SimpleDirectoryReader
@@ -15,6 +16,8 @@ import logging
 import torch
 import easyocr
 import pickle
+from models import CombinedDistilBERT
+from paths import *
 
 from sklearn.preprocessing import StandardScaler
 
@@ -25,62 +28,65 @@ import nltk
 nltk_data_dir = "nltk_data/" 
 nltk.data.path.append(nltk_data_dir)
 
-api_key = os.getenv("OPENAI_API_KEY")
-ip = os.getenv('LARAVEL_IP_ADDRESS')
-API_KEY_LlamaParse = os.getenv("LLAMA_CLOUD_API_KEY")
+API_KEY = os.getenv("OPENAI_API_KEY")
+LARAVEL_IP = os.getenv('LARAVEL_IP_ADDRESS')
+API_KEY_LLAMAPARSE = os.getenv("LLAMA_CLOUD_API_KEY")
+LABEL_ENCODER_PATH = os.getenv("LABEL_ENCODER_PATH")
+DISTILBERT_MODEL_PATH = os.getenv("DISTILBERT_MODEL_PATH")
+
 # Set up the parser
-parser = LlamaParse(
-    api_key=API_KEY_LlamaParse,
+PARSER = LlamaParse(
+    api_key=API_KEY_LLAMAPARSE,
     result_type="text"
 )
 
-model = lp.Detectron2LayoutModel(
+DETECTRON_MODEL = lp.Detectron2LayoutModel(
     config_path='faster_rcnn/config.yaml',
     model_path='faster_rcnn/model_final.pth',
     extra_config=["MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.7],
     label_map={0: "Caption", 1: "Code", 2: "Figures", 3: "Header", 4: "Lesson", 5: "Module", 6: "Section", 7: "Subsection", 8: "Tables", 9: "Text"}
 )
 
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2') 
+EMBEDDING_MODEL = SentenceTransformer('all-MiniLM-L6-v2') 
 
-model_name = 'sentence-transformers/all-MiniLM-L6-v2'
-model_kwargs = {'device': 'cpu'} #use "cuda" if you have nvidia gpu otherwise use "cpu"
-encode_kwargs = {'normalize_embeddings': True}
+MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+MODEL_KWARGS = {'device': 'cpu'} #use "cuda" if you have nvidia gpu otherwise use "cpu"
+ENCODE_KWARGS = {'normalize_embeddings': True}
 
-Sbert = HuggingFaceEmbeddings(
-    model_name=model_name,
-    model_kwargs=model_kwargs,
-    encode_kwargs=encode_kwargs
+SBERT = HuggingFaceEmbeddings(
+    model_name=MODEL_NAME,
+    model_kwargs=MODEL_KWARGS,
+    encode_kwargs=ENCODE_KWARGS
 )
 
-vector_store = Chroma(
+CONTENT_DOCUMENT = Chroma(
     collection_name="TopIT",
-    embedding_function=Sbert,
+    embedding_function=SBERT,
     persist_directory="./chroma_db1",  # Where to save data locally, remove if not neccesary
 )
 
-vector_store_questions = Chroma(
+QUESTION_DOCUMENT = Chroma(
     collection_name="Questions",
-    embedding_function=Sbert,
+    embedding_function=SBERT,
     persist_directory="./chroma_db1",
 )
 
 # question difficulty estimation model 
-reference_embeddings = joblib.load('models/embeddings.pkl')
-classifier_model = joblib.load('models/trained_model.pkl')
-tfidf = joblib.load('models/tfidf_vectorizer.pkl')
-scaler = joblib.load('models/scaler.pkl')
-# loaded_keywords = joblib.load('models/category_keywords.pkl')
+LABEL_ENCODER = joblib.load(LABEL_ENCODER_PATH)
+DISTILBERT_MODEL = CombinedDistilBERT(num_classes=len(LABEL_ENCODER.classes_) , feature_dim=7)
 
-# with open('models/category_keywords.pkl', 'rb') as file:
-#     loaded_keywords = pickle.load(file)
+# Load the saved weights
+DISTILBERT_MODEL.load_state_dict(torch.load(DISTILBERT_MODEL_PATH))
+DISTILBERT_MODEL.eval()  # Set to evaluation mode
+print("Model loaded successfully!")
+
 
 # Load the llm 
-llm = ChatOpenAI(model_name="gpt-4o-mini",api_key=api_key)
+LLM = ChatOpenAI(model_name="gpt-4o-mini",api_key=API_KEY)
 
 #EasyOCR
 gpu_available = torch.cuda.is_available()
-reader = easyocr.Reader(['en'],gpu=gpu_available,model_storage_directory=None,download_enabled=True)
+EASY_READER = easyocr.Reader(['en'],gpu=gpu_available,model_storage_directory=None,download_enabled=True)
 
 # Configure logging
 logging.basicConfig(

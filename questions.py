@@ -29,7 +29,6 @@ from textstat import syllable_count
 
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
-
 words_to_keep = {'how', 'what', 'where', 'why', 'when'}
 stop_words = stop_words - words_to_keep
 
@@ -268,7 +267,7 @@ def preprocess_and_predict(question, tfidf_vectorizer, example_embeddings):
     features['complex_word_count'] = sum(syllable_count(word) > 3 for word in tokenized_question)
 
     # --- Semantic Similarity Features ---
-    question_embedding = embedding_model.encode(preprocessed_question)
+    question_embedding = EMBEDDING_MODEL.encode(preprocessed_question)
     similarity_scores = compute_semantic_similarity_from_embedding(question_embedding, example_embeddings)
     features.update(similarity_scores)
     

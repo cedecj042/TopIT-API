@@ -1,6 +1,8 @@
 
 from pydantic import BaseModel
 from typing import List, Dict, Any,Optional
+from transformers import DistilBertModel
+import torch.nn as nn
 
 class QuestionFormat(BaseModel):
     course_id: int
@@ -71,3 +73,35 @@ class QueryRequest(BaseModel):
 
 class CourseDataRequest(BaseModel):
     course_data: dict
+
+
+class CombinedDistilBERT(nn.Module):
+    def __init__(self, num_classes, feature_dim):
+        super(CombinedDistilBERT, self).__init__()
+        # Load DistilBERT model
+        self.bert = DistilBertModel.from_pretrained("distilbert-base-uncased")
+        
+        # Feed-forward network for handcrafted features
+        self.feature_layer = nn.Sequential(
+            nn.Linear(feature_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(0.1)
+        )
+        
+        # Final classifier
+        self.classifier = nn.Linear(768 + 32, num_classes)
+
+    def forward(self, ids, mask, features):
+        # Pass tokenized inputs through BERT
+        bert_outputs = self.bert(input_ids=ids, attention_mask=mask)
+        pooled_output = bert_outputs.last_hidden_state[:, 0, :]  # CLS token embedding
+        
+        # Pass handcrafted features through feed-forward layer
+        feature_output = self.feature_layer(features)
+        
+        # Concatenate BERT and feature outputs
+        combined_output = torch.cat((pooled_output, feature_output), dim=1)
+        
+        # Final classification
+        logits = self.classifier(combined_output)
+        return logits

@@ -1,6 +1,3 @@
-from fastapi import FastAPI, File, UploadFile,Form, HTTPException, BackgroundTasks,Request, status, Request
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 import os
 import cv2
 from PIL import Image
@@ -13,7 +10,7 @@ import fitz  # PyMuPDF
 import base64
 from io import BytesIO
 import re
-from setup import logging,ip,model,reader
+from setup import logging,LARAVEL_IP,DETECTRON_MODEL,EASY_READER
 
 # Check if GPU is available
 
@@ -128,7 +125,7 @@ def extract_text_from_layout(sorted_layout, image):
                 }
             else:
                 # Use EasyOCR to extract text
-                result = reader.readtext(cropped_image, detail=0)  # detail=0 for text only
+                result = EASY_READER.readtext(cropped_image, detail=0)  # detail=0 for text only
                 text = ' '.join(result)
                 cleaned_text = clean_and_sanitize_text(text)
                 items[f"Block_{idx+1}"] = {
@@ -399,7 +396,7 @@ def actual_pdf_processing_function(file_content, course_name: str, filename: str
 
         images_folder = convert_pdf_to_images(pdf_path)
 
-        course_json = process_pdf_images(images_folder, model, course_name=course_name)
+        course_json = process_pdf_images(images_folder, DETECTRON_MODEL, course_name=course_name)
 
         output_path = os.path.join(upload_dir, 'output.json')
         with open(output_path, 'w') as json_file:
@@ -407,7 +404,7 @@ def actual_pdf_processing_function(file_content, course_name: str, filename: str
             
         logging.info("Sending data to Laravel.")
         
-        laravel_endpoint = f"http://{ip}:8000/admin/store-processed-pdf/"
+        laravel_endpoint = f"http://{LARAVEL_IP}:8000/admin/store-processed-pdf/"
         response = requests.post(laravel_endpoint, json={
             "course_id": course_id,
             "file_name":filename,
