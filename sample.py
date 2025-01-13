@@ -1,5 +1,7 @@
-import os
-from dotenv import load_dotenv
+from setup import * 
+from questions import * 
 
-load_dotenv()  # Load the environment variables from .env file
-print(os.getenv('IP_ADDRESS'))  # Should now print 192.168.1.3
+
+sentence = "Evaluate the trade-offs between using relational databases and NoSQL databases for storing and querying large-scale datasets in distributed systems."
+prediction = preprocess_and_predict(sentence,tfidf,reference_embeddings)
+print(f"Prediction: {prediction}")

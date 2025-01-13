@@ -3,18 +3,15 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel
-
-# for llamaparse
-from llama_parse import LlamaParse
-from llama_index.core import SimpleDirectoryReader
-
-from typing import Dict, Any
-from functions import *
+from pdf_processing import actual_pdf_processing_function,process_content
 from rag import *
+from setup import *
+from typing import List
+from models import CreateQuestionsRequest, QueryRequest, ModuleModel,CourseModel
 import nest_asyncio
-import time
 import asyncio
+import shutil
+import time
 
 nest_asyncio.apply()
 
@@ -26,95 +23,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    filename="app.log",  # Path to the log file
-    level=logging.INFO,  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Log format
-    datefmt="%Y-%m-%d %H:%M:%S",  # Date format for log messages
-)
-
-# Load environment variables
-load_dotenv()
-API_KEY_LlamaParse = os.getenv("LLAMA_CLOUD_API_KEY")
-# Set up the parser
-parser = LlamaParse(
-    api_key=API_KEY_LlamaParse,
-    result_type="text"
-)
-
-class QueryRequest(BaseModel):
-    query: str
-
-class CourseDataRequest(BaseModel):
-    course_data: dict
-    
-# Define the expected structure of the input JSON using Pydantic
-# class CreateQuestionsRequest(BaseModel):
-#     course_id: int
-#     course_title: str
-#     questionType: str
-#     numOfVeryEasy: int
-#     numOfEasy: int
-#     numOfAverage: int
-#     numOfHard: int
-#     numOfVeryHard: int
-    
-class TableModel(BaseModel):
-    table_id: int
-    description: str
-    caption: str
-
-class FigureModel(BaseModel):
-    figure_id: int
-    description: str
-    caption: str
-
-class CodeModel(BaseModel):
-    code_id: int
-    description: str
-    caption: str
-
-class SubsectionModel(BaseModel):
-    subsection_id: int
-    title: str
-    content: list[dict]
-    tables: list[TableModel]
-    figures: list[FigureModel]
-    codes: list[CodeModel]
-
-class SectionModel(BaseModel):
-    section_id: int
-    title: str
-    content: list[dict]
-    tables: list[TableModel]
-    figures: list[FigureModel]
-    codes: list[CodeModel]
-    subsections: list[SubsectionModel]
-
-class LessonModel(BaseModel):
-    lesson_id: int
-    title: str
-    content: list[dict]
-    sections: list[SectionModel]
-
-class ModuleModel(BaseModel):
-    module_id: int
-    course_id: int  # Associate the module with a course
-    title: str
-    content: list[dict]
-    lessons: list[LessonModel]
-    
-class CourseModel(BaseModel):
-    course_id: int
-    title: str
-    description: str
     
 @app.get("/view-data/")
 def view_data():
     # Access the stored documents from the Chroma collection
     all_data = vector_store._collection.get(include=["documents"])  # Retrieves all documents
+    return {"data": all_data["documents"]}
+
+@app.get("/view-questions/")
+def view_data():
+    # Access the stored documents from the Chroma collection
+    all_data = vector_store_questions._collection.get(include=["documents"])  # Retrieves all documents
     return {"data": all_data["documents"]}
 
 @app.post("/process-pdf/")
@@ -232,7 +151,6 @@ async def imagetoText(image: UploadFile = File(...)):
 async def add_modules_bulk(modules: List[ModuleModel]):
     try:
         all_documents = []
-        all_metadatas = []
         all_ids = []
 
         for module in modules:
@@ -244,7 +162,7 @@ async def add_modules_bulk(modules: List[ModuleModel]):
                 raise HTTPException(status_code=404, detail=f"Course with ID {module.course_id} not found. Please create the course first.")
 
             # Process module content
-            module_content = process_content(module.content)
+            module_content = process_content(module.contents)
             module_document = Document(
                 page_content=f"Module: {module.title}. " + " ".join(module_content),
                 metadata={"module_id": module.module_id, "course_id": module.course_id, "type": "Module"}
@@ -254,7 +172,7 @@ async def add_modules_bulk(modules: List[ModuleModel]):
 
             # Add lessons, sections, subsections, and associated content
             for lesson in module.lessons:
-                lesson_content = process_content(lesson.content)
+                lesson_content = process_content(lesson.contents)
                 lesson_document = Document(
                     page_content=f"Lesson: {lesson.title}. " + " ".join(lesson_content),
                     metadata={"module_id": module.module_id, "lesson_id": lesson.lesson_id, "course_id": module.course_id, "type": "Lesson"}
@@ -263,7 +181,7 @@ async def add_modules_bulk(modules: List[ModuleModel]):
                 all_ids.append(f"{module.module_id}_{lesson.lesson_id}")
 
                 for section in lesson.sections:
-                    section_content = process_content(section.content)
+                    section_content = process_content(section.contents)
                     section_document = Document(
                         page_content=f"Section: {section.title}. " + " ".join(section_content),
                         metadata={"module_id": module.module_id, "lesson_id": lesson.lesson_id, "section_id": section.section_id, "course_id": module.course_id, "type": "Section"}
@@ -272,38 +190,13 @@ async def add_modules_bulk(modules: List[ModuleModel]):
                     all_ids.append(f"{module.module_id}_{lesson.lesson_id}_{section.section_id}")
 
                     for subsection in section.subsections:
-                        subsection_content = process_content(subsection.content)
+                        subsection_content = process_content(subsection.contents)
                         subsection_document = Document(
                             page_content=f"Subsection: {subsection.title}. " + " ".join(subsection_content),
                             metadata={"module_id": module.module_id, "lesson_id": lesson.lesson_id, "section_id": section.section_id, "subsection_id": subsection.subsection_id, "course_id": module.course_id, "type": "Subsection"}
                         )
                         all_documents.append(subsection_document)
                         all_ids.append(f"{module.module_id}_{lesson.lesson_id}_{section.section_id}_{subsection.subsection_id}")
-
-                        # Add tables, figures, codes as separate entries with metadata
-                        for table in subsection.tables:
-                            table_document = Document(
-                                page_content=f"Table: {table.description}. Caption: {table.caption}",
-                                metadata={"module_id": module.module_id, "lesson_id": lesson.lesson_id, "section_id": section.section_id, "subsection_id": subsection.subsection_id, "table_id": table.table_id, "course_id": module.course_id, "type": "Table"}
-                            )
-                            all_documents.append(table_document)
-                            all_ids.append(f"{module.module_id}_{lesson.lesson_id}_{section.section_id}_{subsection.subsection_id}_table_{table.table_id}")
-
-                        for figure in subsection.figures:
-                            figure_document = Document(
-                                page_content=f"Figure: {figure.description}. Caption: {figure.caption}",
-                                metadata={"module_id": module.module_id, "lesson_id": lesson.lesson_id, "section_id": section.section_id, "subsection_id": subsection.subsection_id, "figure_id": figure.figure_id, "course_id": module.course_id, "type": "Figure"}
-                            )
-                            all_documents.append(figure_document)
-                            all_ids.append(f"{module.module_id}_{lesson.lesson_id}_{section.section_id}_{subsection.subsection_id}_figure_{figure.figure_id}")
-
-                        for code in subsection.codes:
-                            code_document = Document(
-                                page_content=f"Code: {code.description}. Caption: {code.caption}",
-                                metadata={"module_id": module.module_id, "lesson_id": lesson.lesson_id, "section_id": section.section_id, "subsection_id": subsection.subsection_id, "code_id": code.code_id, "course_id": module.course_id, "type": "Code"}
-                            )
-                            all_documents.append(code_document)
-                            all_ids.append(f"{module.module_id}_{lesson.lesson_id}_{section.section_id}_{subsection.subsection_id}_code_{code.code_id}")
 
         # Add all documents, ids, and metadata to the Chroma collection
         vector_store.add_documents(documents=all_documents, ids=all_ids)
@@ -312,7 +205,6 @@ async def add_modules_bulk(modules: List[ModuleModel]):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
 
 @app.post("/create_course/")
 async def create_course(course: CourseModel):
@@ -338,6 +230,31 @@ async def create_course(course: CourseModel):
             ids=[str(course.course_id)],
         )
         return {"message": "Course created successfully", "course_id": course.course_id}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+from fastapi import HTTPException
+
+@app.delete("/delete_module/{module_id}")
+async def delete_module(module_id: int):
+    try:
+        # Retrieve all documents associated with the module_id
+        module_related_documents = vector_store._collection.get(
+            where=lambda doc: doc['metadata'].get('module_id') == module_id
+        )
+        
+        # Extract document IDs to delete
+        document_ids = [doc['id'] for doc in module_related_documents if 'id' in doc]
+
+        # If no documents are found, raise a 404 error
+        if not document_ids:
+            raise HTTPException(status_code=404, detail=f"No module or associated content found for Module ID {module_id}.")
+
+        # Delete all documents related to the module_id
+        vector_store._collection.delete(ids=document_ids)
+        
+        return {"message": f"Module {module_id} and all associated documents deleted successfully."}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
@@ -383,10 +300,25 @@ async def reset_collection():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
     
+@app.post("/reset_question_collection/")
+async def reset_collection():
+    try:
+        global vector_store_questions
+        # Get all documents in the collection
+        all_documents = vector_store_questions._collection.get()
+
+        # Extract document IDs from the 'ids' key
+        document_ids = all_documents.get('ids', [])
+
+        # Delete all documents by their IDs
+        if document_ids:
+            vector_store_questions._collection.delete(ids=document_ids)
+
+        return {"message": "All documents cleared from the collection successfully"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-    
+
 
     
 
