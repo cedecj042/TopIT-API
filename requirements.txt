@@ -17,12 +17,13 @@ langchain_core
 langchain_huggingface
 langchain_openai
 sentence-transformers
+langchain-openai
 chromadb
 llama-index
 langchain-community
 llama_parse
 layoutparser
-scikit-learn
+scikit-learn==1.6.0
 textstat
 inflect
 nltk

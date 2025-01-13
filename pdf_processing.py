@@ -1,16 +1,13 @@
-import os
-import cv2
+import os,cv2
 from PIL import Image
-import base64
-import json
-import requests
 from uuid import uuid4
 import shutil
-import fitz  # PyMuPDF
+import fitz,base64,json,requests
 import base64
 from io import BytesIO
 import re
-from setup import logging,LARAVEL_IP,DETECTRON_MODEL,EASY_READER
+
+from Setup import logging,LARAVEL_IP,LARAVEL_PORT,STORE_PDF_ROUTE,DETECTRON_MODEL,EASY_READER
 
 # Check if GPU is available
 
@@ -404,7 +401,7 @@ def actual_pdf_processing_function(file_content, course_name: str, filename: str
             
         logging.info("Sending data to Laravel.")
         
-        laravel_endpoint = f"http://{LARAVEL_IP}:8000/admin/store-processed-pdf/"
+        laravel_endpoint = f"http://{LARAVEL_IP}:{LARAVEL_PORT}/{STORE_PDF_ROUTE}"
         response = requests.post(laravel_endpoint, json={
             "course_id": course_id,
             "file_name":filename,

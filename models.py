@@ -1,8 +1,10 @@
 
 from pydantic import BaseModel
-from typing import List, Dict, Any,Optional
+from typing import List,Optional
 from transformers import DistilBertModel
 import torch.nn as nn
+import torch
+from langchain.embeddings.base import Embeddings
 
 class QuestionFormat(BaseModel):
     course_id: int
@@ -105,3 +107,45 @@ class CombinedDistilBERT(nn.Module):
         # Final classification
         logits = self.classifier(combined_output)
         return logits
+    
+class QuestionEmbeddings(Embeddings):
+    """Embedding class for question similarity using DistilBERT"""
+    def __init__(self, tokenizer, model, max_len):
+        super(QuestionEmbeddings, self).__init__()  # Fixed this line
+        self.tokenizer = tokenizer
+        self.model = model
+        self.max_len = max_len       
+    
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for a list of documents/questions"""
+        embeddings = []
+        for text in texts:
+            embedding = self._generate_embedding(text)
+            embeddings.append(embedding.squeeze().numpy().tolist())
+        return embeddings
+    
+    def embed_query(self, text: str) -> List[float]:
+        """Generate embedding for a single query string"""
+        embedding = self._generate_embedding(text)
+        return embedding.squeeze().numpy().tolist()
+    
+    def _generate_embedding(self, text: str) -> torch.Tensor:
+        """Your existing embedding generation logic"""
+        encoded_input = self.tokenizer(
+            text,
+            max_length=self.max_len,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt"
+        )
+
+        self.model.eval()
+        with torch.no_grad():
+            bert_outputs = self.model.bert(
+                input_ids=encoded_input["input_ids"],
+                attention_mask=encoded_input["attention_mask"]
+            )
+            cls_embedding = bert_outputs.last_hidden_state[:, 0, :]
+            normalized_embedding = torch.nn.functional.normalize(cls_embedding, p=2, dim=1)
+            
+        return normalized_embedding
