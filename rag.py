@@ -15,8 +15,8 @@ from langchain.chains import create_retrieval_chain
 # from langchain_core.documents import Document
 # from sentence_transformers import SentenceTransformer
 import chromadb.utils.embedding_functions as embedding_functions
-
 from chromadb.config import Settings
+
 
 # OpenAI
 from openai import OpenAI
@@ -25,22 +25,21 @@ from uuid import uuid4
 
 # Base64 images conversion
 import base64, logging
-from PIL import Image
+from PIL import Image,UnidentifiedImageError
 from io import BytesIO
 from fastapi import HTTPException
 
 # handling json files
 import json
-from PIL import UnidentifiedImageError
 
 # regex
 import re, uuid, requests
 from datetime import datetime
 
-from setup import *
-from questions import *
-from constants import *
-from models import QuestionFormat, CreateQuestionsRequest
+from Setup import CONTENT_DOCUMENT,QUESTION_DOCUMENT,LLM,LARAVEL_IP
+from Question import *
+from Constants import *
+from Models import QuestionFormat, CreateQuestionsRequest
 
 
 def cleanText(text):
@@ -54,7 +53,7 @@ def queryHierarchicalIndex(query_text, level=None):
     filter_criteria = {"level": level} if level else {}
 
     # Perform a similarity search using ChromaDB
-    results = vector_store.similarity_search(
+    results = CONTENT_DOCUMENT.similarity_search(
         query=query_text,  # The query string
         k=5,  # Number of similar documents to retrieve
         filter=filter_criteria,  # Filter criteria if needed
@@ -66,7 +65,7 @@ def queryHierarchicalIndex(query_text, level=None):
 
 def ModelQuerywithRAG(input, course_id):
 
-    retriever = vector_store.as_retriever(
+    retriever = CONTENT_DOCUMENT.as_retriever(
         search_kwargs={
             "filter": {
                 "$and": [
@@ -88,7 +87,7 @@ def ModelQuerywithRAG(input, course_id):
             }
         }
     )
-    retriever = vector_store.as_retriever()
+    retriever = CONTENT_DOCUMENT.as_retriever()
 
     # Define prompt template
     template = """
@@ -108,7 +107,7 @@ def ModelQuerywithRAG(input, course_id):
     # Create a prompt template
     prompt_template = ChatPromptTemplate.from_template(template)
     # Create a chain
-    doc_chain = create_stuff_documents_chain(llm, prompt_template)
+    doc_chain = create_stuff_documents_chain(LLM, prompt_template)
     chain = create_retrieval_chain(retriever, doc_chain)
 
     # User query
@@ -116,46 +115,10 @@ def ModelQuerywithRAG(input, course_id):
     return response["answer"]
 
 
-# def validate_question_format(result, question_type):
-#     # Define correct format based on question type
-#     if question_type == "Multiple Choice - Single":
-#         correct_format = {
-#             "question": str,
-#             "questionType": str,
-#             "answer": str,
-#             "difficulty": str,
-#             "discrimination": float,
-#             "choices": list
-#         }
-#     elif question_type == "Multiple Choice - Many":
-#         correct_format = {
-#             "question": str,
-#             "questionType": str,
-#             "answer": list,
-#             "difficulty": str,
-#             "discrimination": float,
-#             "choices": list
-#         }
-#     elif question_type == "identification":
-#         correct_format = {
-#             "question": str,
-#             "questionType": str,
-#             "answer": list,
-#             "difficulty": str,
-#             "discrimination": float
-#         }
-
-#     for key, expected_type in correct_format.items():
-#         if key not in result or not isinstance(result[key], expected_type):
-#             return False
-
-#     return True
-
-
 def check_answers(result, questionType):
     # checking for answers
     # pulihi lang ang "identification" sa ipass sa parameter nga questionType
-    if questionType == "identification":
+    if questionType == "Identification":
         answer = result["answer"].split()
         if not (1 <= len(answer) < 3):
             raise ValueError(
@@ -166,13 +129,13 @@ def check_answers(result, questionType):
                 raise ValueError(f"{key} not in the correct keys for identifcation")
 
     # pulihi lang ang "multiple_choice_multiple_answer" sa ipass sa parameter nga questionType
-    if questionType == "multiple_choice_multiple_answer":
+    if questionType == "Multiple Choice - Many":
         correct_answers_len = len(result["answer"])
         if correct_answers_len < 2:
             raise ValueError("Multiple choice multiple answers is not atleast 2")
 
         for answer in result["answer"]:
-            if answer not in result["choices"]:
+            if answer not in result["c  hoices"]:
                 raise ValueError(
                     f"Correct answer '{answer}' is not found in the choices."
                 )
@@ -195,296 +158,11 @@ def check_answers(result, questionType):
                     f"{key} not in the correct keys for multiple choice question type"
                 )
 
-# def createQuestions(data, example, description):
-#     try:
-#         result_questions = {
-#             "course_id": data.course_id,
-#             "course_title": data.course_title,
-#             "questions": [],
-#         }
-
-#         needed = {
-#             "Very Easy": data.numOfVeryEasy,
-#             "Easy": data.numOfEasy,
-#             "Average": data.numOfAverage,
-#             "Hard": data.numOfHard,
-#             "Very Hard": data.numOfVeryHard,
-#         }
-
-#         while any(count > 0 for count in needed.values()):
-#             instructions = f"""
-#                 Generate questions and answers in the form of {description} based on the content of the {data.course_title} course. 
-#                 Provide a realistic and practical scenario related to {data.course_title}. Formulate a question that tests critical thinking and application of knowledge. 
-#                 Include coding examples, practical problems, and analytical questions in certain situations.
-
-#                 The types of questions needed are:
-#                 {', '.join([f'- {count} {key} questions' for key, count in needed.items() if count > 0])}
-
-#                 Ensure the question is clear, concise, and similar to questions in the TOPCIT exam.
-
-#                 It should be stored in a JSON format like this and don't put any text beside this:
-                
-#                 {{
-#                     "course_id": "{data.course_id}",
-#                     "course_title":"{data.course_title}",
-#                     "questions": [
-#                         {example}
-#                     ]
-#                 }}
-#             """
-
-#             response = ModelQuerywithRAG(instructions, data.course_id)
-#             logging.info(f"Response: {response}")
-
-#             if not response:
-#                 logging.error("Error: Empty response received from model")
-#                 break
-
-#             # Process LLM response
-#             cleaned_response = response.replace("```json", "").replace("```", "").strip()
-
-#             try:
-#                 parsed_response = json.loads(cleaned_response)
-#                 logging.info(f"parsing response:  {parsed_response}")
-#             except (json.JSONDecodeError, ValueError) as e:
-#                 logging.error(f"JSON decoding error: {e}")
-#                 break
-
-#             if isinstance(parsed_response, dict) and "questions" in parsed_response:
-#                 questions = parsed_response["questions"]
-#                 logging.info(f"parsing response:  {parsed_response}")
-                
-#             else:
-#                 logging.error("Invalid format received from model.")
-#                 break
-            
-#             logging.info(questions)
-#             for question in questions:
-#                 question_text = question.get("question", "")
-#                 logging.info(f"current question: {question_text}")
-                
-#                 difficulty_type = question.get("difficulty_type", "")
-
-#                 if not question_text or not difficulty_type:
-#                     logging.warning("Skipping question due to missing fields.")
-#                     continue
-
-#                 if any(q["question"] == question_text for q in result_questions["questions"]):
-#                     logging.info("Duplicate question found, skipping.")
-#                     continue
-
-#                 if checkExactMatch(question_text):
-#                     logging.info("Exact match in vector store, skipping.")
-#                     continue
-
-#                 difficulty_value = predict_difficulty_value(question_text,difficulty_type)
-#                 discrimination_value = get_discrimination(difficulty_type)
-
-#                 if difficulty_type in needed and needed[difficulty_type] > 0:
-#                     vector_store_questions.add_texts(texts=[question_text])
-
-#                     question["difficulty_value"] = difficulty_value
-#                     question["discrimination_index"] = discrimination_value
-
-#                     result_questions["questions"].append(question)
-#                     needed[difficulty_type] -= 1
-                    
-
-#         logging.info(f"Final questions: {result_questions}")
-#         return result_questions
-
-#     except Exception as e:
-#         logging.error(f"Unexpected error: {e}")
-#         return [{}]
-
-
-# def createQuestions(data, example, description):
-#     try:
-#         max_iterations = 100
-#         iteration = 0
-#         result_questions = {
-#             "course_id": data.course_id,
-#             "course_title": data.course_title,
-#             "questions": [],
-#         }
-#         needed = {
-#             "very easy": data.numOfVeryEasy,
-#             "easy": data.numOfEasy,
-#             "average": data.numOfAverage,
-#             "hard": data.numOfHard,
-#             "very hard": data.numOfVeryHard,
-#         }
-
-#         while True:
-#             iteration += 1
-#              # Identify remaining difficulties
-#             needed_difficulties = {diff: count for diff, count in needed.items() if count > 0}
-#             if not needed_difficulties:
-#                 break  # Exit when no questions are needed
-            
-#             # Prepare batch instructions
-#             batch_needed = {}
-#             for diff, count in needed_difficulties.items():
-#                 batch_needed[diff] = min(30, count)  # Limit to a batch of 20 per difficulty
-            
-#             batch_needed_str = "\n".join(
-#                 f"- **{diff.capitalize()} ({diff.replace(' ', '_').title()}):** {count} questions"
-#                 for diff, count in batch_needed.items()
-#             )
-# Examples:
-#                 Very Easy: [
-#                     "What is the default port for HTTP connections in web servers?",
-#                     "Which of the following is an example of a relational database?",
-#                     "What is the command to list files and directories in Linux?",
-#                     "Which layer of the OSI model is responsible for routing data between networks?",
-#                     "Name the data type in Python used to store a collection of unique items.",
-#                     "Explain the designation of coated electrode.",
-#                     "Write down various applications of Nanomaterials in Chemical industries.",
-#                     "What is functional independence?"
-#                 ],
-#                 Easy: [
-#                     "Explain the difference between client-side and server-side scripting.",
-#                     "Which of the following best describes a foreign key in a relational database?",
-#                     "What is the purpose of normalization in database design?",
-#                     "Which statement about REST APIs is correct?",
-#                     "In object-oriented programming, what is encapsulation?",
-#                     "Explain why mycorrhizal fungi are important for phosphorus availability in soil.",
-#                     "Which of the following demonstrates the core concept of systems design?"
-#                 ],
-#                 Average: [
-#                     "Write a SQL query to retrieve all employees earning more than $50,000 from a table named employees.",
-#                     "Which of the following algorithms would you use to sort a large dataset efficiently?",
-#                     "What is the output of the following Python code: `a = [1, 2, 3, 4]; print(a[::-1])`?",
-#                     "Which command in Git is used to combine changes from multiple branches?",
-#                     "Describe how to implement a `for` loop to print numbers from 1 to 10 in Python.",
-#                     "Which of the following selects the core concept of data analysis?",
-#                     "Apply the principles of fluid dynamics to design an efficient water distribution system."
-#                 ],
-#                 Hard: [
-#                     "Given this function, identify the time complexity: `def sum_array(arr): for i in range(len(arr)): for j in range(len(arr)): print(i, j)`",
-#                     "Which of the following is NOT a type of database normalization?",
-#                     "What are the components of a basic software architecture diagram?",
-#                     "A critical bug in production has been identified. What is the FIRST step in handling the issue?",
-#                     "What is the purpose of using pseudocode in system design?",
-#                     "Which of the following themes the core concept of software development?",
-#                     "Compare the security features and vulnerabilities of different authentication methods (e.g., passwords, biometrics, multi-factor authentication) in network access control."
-#                 ],
-#                 Very Hard: [
-#                     "Evaluate the pros and cons of using NoSQL databases over relational databases.",
-#                     "Which of the following factors is MOST important when choosing a cloud service provider?",
-#                     "What is your recommendation for improving the performance of this SQL query: SELECT * FROM employees WHERE department = 'IT';",
-#                     "Which of the following is an ethical consideration in software development?",
-#                     "Why is conducting a code review critical for software quality assurance?",
-#                     "Assess the scalability of a serverless computing platform for deploying and running event-driven applications.",
-#                     "Choose the key principles of software development."
-#                 ]
-
-            
-#             instructions = f"""
-#                 Iteration {iteration}: Generate questions and answers in the form of {description} based on the content of the {data.course_title} course. 
-#                 Provide a realistic and practical scenario related to {data.course_title}. Formulate a question that tests critical thinking and application of knowledge. 
-#                 Include coding examples, practical problems, and analytical questions in a certain situations.
-#                 The types of questions needed are:
-#                 {batch_needed_str}
-
-#                 Ensure the question is clear, concise, and within the like in the TOPCIT exam.
-
-#                 It should be stored in a JSON format like this and don't put any text beside this:
-                
-#                 {{
-#                     "course_id": "{data.course_id}",
-#                     "course_title":"{data.course_title}",
-#                     "questions": [
-#                         {example}
-#                     ]
-#                 }}
-#             """
-            
-#             response = ModelQuerywithRAG(instructions, data.course_id)
-#             logging.info(f"Response: {response}")
-
-#             if not response:
-#                 logging.error("Error: Empty response received from model")
-#                 if iteration >= max_iterations:
-#                     break
-#                 continue
-
-#             # Process LLM response
-#             cleaned_response = response.replace("```json", "").replace("```", "").strip()
-
-#             try:
-#                 result = json.loads(cleaned_response)
-#             except (json.JSONDecodeError, ValueError) as e:
-#                 logging.error(f"JSON decoding error: {e}")
-#                 if iteration >= max_iterations:
-#                     break
-#                 continue
-
-#             if isinstance(result, dict) and "questions" in result:
-#                 result = result["questions"]
-                
-                
-#             result_questions_list = result["questions"]
-#             existing_questions = {q["question"] for q in result_questions["questions"]}
-#             for res in result:
-#                 question_text = res.get("question", "").strip()
-
-#                 # Skip duplicate questions in result_questions
-#                 if question_text in existing_questions:
-#                     logging.info("Duplicate question found, skipping.")
-#                     continue
-
-#                 # Skip questions already in vector store
-#                 if checkExactMatch(question_text):
-#                     logging.info("Exact match in vector store, skipping.")
-#                     continue
-
-#                 # Predict difficulty type and value
-#                 try:
-#                     predicted_class = preprocess_and_predict(question_text)
-#                     difficulty_value = predict_difficulty_value(question_text, predicted_class)
-#                 except Exception as e:
-#                     logging.error(f"Error during prediction for question '{question_text}': {e}")
-#                     continue
-
-#                 # Check if the predicted class is still needed
-#                 if predicted_class in needed and needed[predicted_class] > 0:
-#                     # Add to vector store
-#                     vector_store_questions.add_texts(texts=[question_text])
-
-#                     # Update result with difficulty information
-#                     res.update({
-#                         "difficulty_type": predicted_class,
-#                         "difficulty_value": difficulty_value,
-#                         "discrimination_index": get_discrimination(predicted_class),
-#                     })
-
-#                     # Append question to results and update needed counts
-#                     result_questions["questions"].append(res)
-#                     existing_questions.add(question_text)  # Update the tracker
-#                     needed[predicted_class] -= 1
-
-#                 # Check if all difficulties are satisfied
-#                 if all(count == 0 for count in needed.values()):
-#                     logging.info("All needed difficulties satisfied.")
-#                     break
-
-#                 # Break if max iterations reached
-#                 if iteration >= max_iterations:
-#                     logging.warning("Reached maximum iterations without fulfilling all difficulties.")
-#                     break
-
-#         return result_questions
-
-#     except Exception as e:
-#         logging.error(f"Unexpected error: {e}")
-#         return {}
-
 def createQuestions(data):
     try:
-        max_iterations = 100
+        max_iterations = 20
         iteration = 0
-        DEFAULT_QUESTIONS_PER_DIFFICULTY = 20
+        DEFAULT_QUESTIONS_PER_DIFFICULTY = 10
         result_questions = {
             "course_id": data.course_id,
             "course_title": data.course_title,
@@ -500,6 +178,7 @@ def createQuestions(data):
         }
         
         existing_questions = set()
+        warnings_feedback = []
 
         while iteration < max_iterations:
             iteration += 1
@@ -519,16 +198,26 @@ def createQuestions(data):
             
             logging.info(f"Iteration {iteration}: Remaining questions needed: {remaining_questions}")
             logging.info(f"Current needs by difficulty: {needed_difficulties}")
+            
+            filtered_blooms_descriptions = build_blooms_prompt(needed, BLOOMS_MAPPING)
+            
+            # Filter out irrelevant warnings
+            relevant_feedback = [
+                warning for warning in warnings_feedback
+                if "No suitable Bloom's level" in warning or "Error processing question" in warning
+            ]
+
+            # Generate feedback string
+            feedback_str = "\n".join(f"- {feedback}" for feedback in relevant_feedback)
 
             instructions = f"""
-                Iteration {iteration}: Generate questions and answers the based on the content of the {data.course_title} course. 
-                Provide a realistic and practical scenario related to {data.course_title}. Formulate a question that tests critical thinking and application of knowledge. 
-                Include coding examples, practical problems, and analytical questions in a certain situations.
+                Iteration {iteration}: 
+                Generate questions and answers based on the content of the {data.course_title} course.
+                Each question must align with one of the following Bloom's Taxonomy levels and associated cognitive processes.
+                Provide realistic and practical scenarios that test critical thinking and application of knowledge.
+
                 Generate {DEFAULT_QUESTIONS_PER_DIFFICULTY} questions per difficulty. The types of questions needed are:
                 {batch_needed_str}
-                
-                For Very Easy and Easy,Average, you can use Identification or Multiple Choice Formats.
-                For Hard and Very Hard, use only Multiple Choice format.
                 
                 Allowed Question Format:
                 {QUESTION_TYPES}
@@ -536,56 +225,11 @@ def createQuestions(data):
                 Rules for each question format:
                 {QUESTION_RULES}
                                 
-                The generate questions must be based on Bloom's Taxonomy levels.
-                - Very Easy: Remember
-                Retrieving relevant knowledge from long-term memory. 
-                Sample Questions: 
-                1. Name the data type in Python used to store a collection of unique items.
-                2. What is the default port for HTTP connections in web servers?
-                3. Which of the following is an example of a relational database?
-                4. What is the command to list files and directories in Linux?
-                5. Which layer of the OSI model is responsible for routing data between networks?
+                Descriptions and Examples for Needed Levels:
+                {filtered_blooms_descriptions}
                 
-                - Easy: Understand
-                Constructing meaning from oral, written, and graphic messages. 
-                Sample Questions: 
-                1. Explain the difference between client-side and server-side scripting.
-                2. Which of the following best describes a foreign key in a relational database?
-                3. What is the purpose of normalization in database design?
-                4. Which statement about REST APIs is correct?
-                5. In object-oriented programming, what do you understood by encapsulation?
-                
-                - Average: Apply
-                Sample Questions:
-                1. If you were to write a SQL query to retrieve all employees earning more than $50,000 from a table named employees, which would you choose?
-                2. Which of the following algorithms would you use to sort a large dataset efficiently?
-                3. What is the output of the following Python code: `a = [1, 2, 3, 4]; print(a[::-1])`?
-                4. Solve a budget overrun in party planning by showing how to reduce costs on decorations or catering. Choose the answer.
-                5. Consider the following processes arrival time and burst time as shown below in table. Calculate average waiting time and average turn aroundtime if Quantum time is 2. Use Round Robin Algorithm. Choose the answer.
-
-                - Hard: Analyze
-                1. Given this function, identify the time complexity: `def sum_array(arr): for i in range(len(arr)): for j in range(len(arr)): print(i, j)`
-                2."A team is troubleshooting a web application that frequently crashes during peak hours. They discover the following possible causes: Database queries taking longer than expected.
-                    Insufficient server resources allocated for the application.
-                    Excessive logging during high traffic.
-                    Unoptimized API endpoints.
-                    Analyze the potential causes and determine which one is the most likely root cause of the crashes. Support your answer with logical reasoning."
-                3. Your team is tasked with designing a cooling system for an electric vehicle battery pack to maintain optimal operating temperatures. Compare the effectiveness of using air cooling versus liquid cooling systems in dissipating heat from the battery cells while minimizing energy consumption and system weight.
-                4. "A company is planning to implement a microservices architecture for its web application. The team identifies the following challenges:
-                    Difficulty in setting up inter-service communication.
-                    Increased overhead in managing multiple services.
-                    Latency issues during service calls under high traffic.
-                    Inconsistent data synchronization across services.
-                    Analyze these challenges and determine which one poses the greatest risk to system reliability."
-                5. Compare the features and performance of different recommendation systems (e.g., collaborative filtering, content-based filtering, matrix factorization) in personalized recommendation tasks.
-
-                
-                - Very Hard: Evaluate
-                1. Evaluate the pros and cons of using NoSQL databases over relational databases.
-                2. Which of the following factors is MOST important when choosing a cloud service provider?
-                3. What is your recommendation for improving the performance of this SQL query: `SELECT * FROM employees WHERE department = 'IT'`;
-                4. What would you recommend for addressing data synchronization issues between an analytics dashboard and its backend?
-                5. Which programming paradigm would you argue is most suitable for a project requiring high concurrency, and why?
+                Feedback from previous iterations:
+                {feedback_str}
                          
                 Ensure the question is clear, concise, and similar to those in the TOPCIT exam.
 
@@ -599,6 +243,8 @@ def createQuestions(data):
                     ]
                 }}
             """
+            logging.info(instructions)
+            
             
             response = ModelQuerywithRAG(instructions, data.course_id)
             logging.info(f"Response: {response}")
@@ -626,49 +272,50 @@ def createQuestions(data):
                 continue
 
             questions_added = 0
-
+            warnings_feedback.clear()
             for res in result["questions"]:
                 question_text = res.get("question", "").strip()
+                question_type = res.get("questionType","")
+
                 logging.info(question_text)
+
+                # Skip questions already in vector store or duplicate question
+                if question_text in existing_questions or checkExactMatch(question_text):
+                    warnings_feedback.append(f"Duplicate question skipped: {question_text}")
+                    continue
                 
-                # Skip duplicate questions in result_questions
-                if question_text in existing_questions:
-                    logging.info("Duplicate question found, skipping.")
-                    continue
-
-                # Skip questions already in vector store
-                if checkExactMatch(question_text):
-                    logging.info("Exact match in vector store, skipping.")
-                    continue
-
-                # Predict difficulty type and value
                 try:
-                    # Get probabilities for all classes
-                    predicted_probs = preprocess_and_predict(question_text, tfidf, reference_embeddings)
+                    # Predict the difficulty type as a string
+                    predicted_class = predict_question(question_text)
+                    logging.info(f"Predicted difficulty class: {predicted_class}")
 
-                    # Sort classes by predicted probabilities in descending order
-                    sorted_classes = sorted(predicted_probs.items(), key=lambda x: x[1], reverse=True)
-
-                    # Check the top prediction's probability
-                    top_class, top_probability = sorted_classes[0]
-
-                    # Use top prediction if its probability is above the threshold
-                    if top_probability > 0.8:
-                        predicted_class = top_class
-                    else:
-                        # Otherwise, find the first available class (considering second-highest, etc.)
-                        for predicted_class, probability in sorted_classes:
-                            if predicted_class in needed and needed[predicted_class] > 0:
-                                break
-                        else:
-                            logging.warning(f"No suitable difficulty type found for question '{question_text}'.")
-                            continue
+                    if not predicted_class or predicted_class not in needed or needed[predicted_class] <= 0:
+                        warning = f"No suitable Bloom's level found for question: '{question_text}'. Predicted: {predicted_class}"
+                        logging.warning(warning)
+                        warnings_feedback.append(warning)
+                        continue
 
                     # Predict difficulty value based on the selected class
                     difficulty_value = predict_difficulty_value(question_text, predicted_class)
 
-                    # Add to vector store
-                    vector_store_questions.add_texts(texts=[question_text])
+                    # Check for similar questions first
+                    similar_question = checkExactMatch(question_text)
+                    if similar_question:
+                        warning = f"Similar question already exists: {similar_question[0]}"
+                        logging.warning(warning)
+                        warnings_feedback.append(warning)
+                        continue
+
+                    # Add to vector store - now using add_texts instead of add
+                    QUESTION_DOCUMENT.add_texts(
+                        texts=[question_text],
+                        metadatas=[{
+                            "difficulty": predicted_class,
+                            "type": question_type,
+                            "difficulty_value": difficulty_value,
+                            "discrimination_index": get_discrimination(predicted_class)
+                        }]
+                    )
                     existing_questions.add(question_text)
 
                     # Update result with difficulty information
@@ -686,16 +333,18 @@ def createQuestions(data):
                     logging.info(f"Added question of difficulty {predicted_class}. Remaining: {needed[predicted_class]}")
 
                 except Exception as e:
-                    logging.error(f"Error processing question '{question_text}': {e}")
+                    warning = f"Error processing question '{question_text}': {e}"
+                    logging.error(warning)
+                    warnings_feedback.append(warning)
                     continue
 
-                
-                logging.info(f"Added {questions_added} questions in this iteration")
-                
-                if questions_added == 0:
-                    logging.warning("No new questions added in this iteration")
-                    if iteration >= 3:  # Give it a few tries before giving up
-                        break
+            # If no questions were added in this iteration, include a general warning
+            if questions_added == 0:
+                warning = "No new questions added in this iteration. Consider refining the instructions for better alignment with Bloom's levels."
+                logging.warning(warning)
+                warnings_feedback.append(warning)
+
+
         logging.info(f"Final question counts by difficulty: {needed}")
         return result_questions
 
@@ -704,6 +353,32 @@ def createQuestions(data):
         return {}
 
 
+def build_blooms_prompt(needed, blooms_mapping):
+    """
+    Build a prompt using Bloom's Taxonomy levels based on the needed difficulties.
+    
+    Args:
+        needed (dict): Dictionary containing counts of needed questions for each difficulty.
+        blooms_mapping (dict): Bloom's Taxonomy mapping with descriptions and examples.
+    
+    Returns:
+        str: Formatted string to include in the prompt.
+    """
+    # Translate `needed` keys (e.g., "Very Easy") to Bloom's levels using the `difficulty` field
+    included_levels = [
+        level for level, details in blooms_mapping.items()
+        if details["difficulty"] in needed and needed[details["difficulty"]] > 0
+    ]
+
+    # Build the string for the prompt
+    filtered_blooms_descriptions = "\n".join(
+        f"- {level} ({blooms_mapping[level]['difficulty']}): {blooms_mapping[level]['description']}\n"
+        f"Examples:\n" +
+        "\n".join(f"  - {example}" for example in blooms_mapping[level]["examples"])
+        for level in included_levels
+    )
+    
+    return filtered_blooms_descriptions
 
 def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     all_questions = []
@@ -737,7 +412,7 @@ def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
         json.dump(all_questions, json_file, indent=4)
 
     # Send the data to Laravel
-    url = f"http://{ip}:8000/admin/store-questions/"
+    url = f"http://{LARAVEL_IP}:{LARAVEL_PORT}/{STORE_QUESTION_ROUTE}"
 
     try:
         response = requests.post(url, json=all_questions)
@@ -749,46 +424,3 @@ def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     except requests.exceptions.RequestException as e:
         logging.error(f"Error while sending data to Laravel: {e}")
         return "Failed to send data to Laravel due to a connection error."
-
-
-def get_question_type_data(question_type):
-    # Dictionary to map question types to their templates and descriptions
-    question_types = {
-        "Multiple Choice - Single": (
-            MULTIPLE_CHOICE_SINGLE,
-            "Multiple Choice - Single",
-        ),
-        "Multiple Choice - Many": (
-            MULTIPLE_CHOICE_MANY,
-            "Multiple Choice - Many must have at least 2 answers and don't put only 1 answer",
-        ),
-        "Identification": (
-            IDENTIFICATION,
-            """
-            Identification answers must have a maximum of 3 words.
-            Avoid questions that has a lot of subjective answers. 
-            Structure of Description for Identification Questions:
-            Directly ask the question, focusing on the specific term or concept.
-            Use clear and concise language.
-            Contextual Clue (Optional):
-            If necessary, provide a brief context or category to guide the student.
-            Keep it concise and relevant.
-            Example: "In software development, what technique is used to simplify complex problems?"
-            for its answers, list also the possible answers, for example the abbreviation(if there is one) or shortened word for the answer 
-            """,
-        ),
-    }
-    return question_types.get(question_type, (None, None))
-
-
-def get_discrimination(type):
-    if type == "Very Easy":
-        return 0.2
-    elif type == "Easy":
-        return 0.4
-    elif type == "Average":
-        return 0.6
-    elif type == "Hard":
-        return 0.8
-    else:
-        return 1.0

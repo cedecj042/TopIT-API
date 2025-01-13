@@ -3,7 +3,7 @@ import layoutparser as lp
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_community.chat_models import ChatOpenAI
+# from langchain_community.chat_models import ChatOpenAI
 from langchain.schema import Document
 from sentence_transformers import SentenceTransformer
 
@@ -16,23 +16,42 @@ import logging
 import torch
 import easyocr
 import pickle
-from models import CombinedDistilBERT
-from paths import *
 
-from sklearn.preprocessing import StandardScaler
+from  Models import CombinedDistilBERT, QuestionEmbeddings
+from transformers import DistilBertTokenizer
 
 from dotenv import load_dotenv
 load_dotenv() 
 
 import nltk
-nltk_data_dir = "nltk_data/" 
-nltk.data.path.append(nltk_data_dir)
+nltk.download('stopwords',quiet=True)
+nltk.download('punkt',quiet=True)
+nltk.download('punkt_tab',quiet=True)
+nltk.download('wordnet',quiet=True)
+# nltk_data_dir = "nltk_data/" 
+# nltk.data.path.append(nltk_data_dir)
 
 API_KEY = os.getenv("OPENAI_API_KEY")
 LARAVEL_IP = os.getenv('LARAVEL_IP_ADDRESS')
+LARAVEL_PORT = os.getenv("LARAVEL_PORT")
 API_KEY_LLAMAPARSE = os.getenv("LLAMA_CLOUD_API_KEY")
-LABEL_ENCODER_PATH = os.getenv("LABEL_ENCODER_PATH")
-DISTILBERT_MODEL_PATH = os.getenv("DISTILBERT_MODEL_PATH")
+
+# Routes
+STORE_PDF_ROUTE = "admin/store-processed-pdf/"
+UPDATE_MODULE_STATUS_ROUTE = "admin/update-module-status"
+STORE_QUESTION_ROUTE = "admin/store-questions"
+
+FASTER_RCNN_CONFIG_PATH = os.getenv('FASTER_RCNN_CONFIG_PATH')
+FASTER_RCNN_MODEL_PATH = os.getenv('FASTER_RCNN_MODEL_PATH')
+CHROMA_PERSIST_DIR = os.getenv('CHROMA_PERSIST_DIR')
+NLTK_DATA_DIR = os.getenv('NLTK_DATA_DIR')
+
+LABEL_ENCODER_PATH = os.getenv('LABEL_ENCODER_PATH')
+FEATURE_STATS_PATH = os.getenv('FEATURE_STATS_PATH')
+DISTILBERT_MODEL_PATH = os.getenv('DISTILBERT_MODEL_PATH')
+DISTILBERT_TOKENIZER_PATH = os.getenv('DISTILBERT_TOKENIZER_PATH')
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 # Set up the parser
 PARSER = LlamaParse(
@@ -41,8 +60,8 @@ PARSER = LlamaParse(
 )
 
 DETECTRON_MODEL = lp.Detectron2LayoutModel(
-    config_path='faster_rcnn/config.yaml',
-    model_path='faster_rcnn/model_final.pth',
+    config_path=FASTER_RCNN_CONFIG_PATH,
+    model_path=FASTER_RCNN_MODEL_PATH,
     extra_config=["MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.7],
     label_map={0: "Caption", 1: "Code", 2: "Figures", 3: "Header", 4: "Lesson", 5: "Module", 6: "Section", 7: "Subsection", 8: "Tables", 9: "Text"}
 )
@@ -59,34 +78,45 @@ SBERT = HuggingFaceEmbeddings(
     encode_kwargs=ENCODE_KWARGS
 )
 
+
+# question difficulty estimation model 
+MAX_LEN = 128
+LABEL_ENCODER = joblib.load(LABEL_ENCODER_PATH)
+LABEL_CLASSES = len(LABEL_ENCODER.classes_) 
+FEATURE_STATS = joblib.load(FEATURE_STATS_PATH)
+
+DISTILBERT_MODEL = CombinedDistilBERT(num_classes=len(LABEL_ENCODER.classes_) , feature_dim=7)
+DISTILBERT_TOKENIZER = DistilBertTokenizer.from_pretrained(DISTILBERT_TOKENIZER_PATH, clean_up_tokenization_spaces=True)
+
+# Load the saved weights
+DISTILBERT_MODEL.load_state_dict(torch.load(DISTILBERT_MODEL_PATH,map_location=DEVICE,weights_only=True))
+DISTILBERT_MODEL.eval()  # Set to evaluation mode
+
+DISTILBERT_EMBEDDING = QuestionEmbeddings(
+    tokenizer=DISTILBERT_TOKENIZER,
+    model=DISTILBERT_MODEL,
+    max_len=MAX_LEN
+)
+
+
 CONTENT_DOCUMENT = Chroma(
     collection_name="TopIT",
     embedding_function=SBERT,
-    persist_directory="./chroma_db1",  # Where to save data locally, remove if not neccesary
+    persist_directory=CHROMA_PERSIST_DIR,  # Loaded from .env
 )
 
 QUESTION_DOCUMENT = Chroma(
     collection_name="Questions",
     embedding_function=SBERT,
-    persist_directory="./chroma_db1",
+    persist_directory=CHROMA_PERSIST_DIR,
 )
-
-# question difficulty estimation model 
-LABEL_ENCODER = joblib.load(LABEL_ENCODER_PATH)
-DISTILBERT_MODEL = CombinedDistilBERT(num_classes=len(LABEL_ENCODER.classes_) , feature_dim=7)
-
-# Load the saved weights
-DISTILBERT_MODEL.load_state_dict(torch.load(DISTILBERT_MODEL_PATH))
-DISTILBERT_MODEL.eval()  # Set to evaluation mode
-print("Model loaded successfully!")
-
 
 # Load the llm 
 LLM = ChatOpenAI(model_name="gpt-4o-mini",api_key=API_KEY)
 
 #EasyOCR
-gpu_available = torch.cuda.is_available()
-EASY_READER = easyocr.Reader(['en'],gpu=gpu_available,model_storage_directory=None,download_enabled=True)
+# gpu_available = torch.cuda.is_available()
+EASY_READER = easyocr.Reader(['en'],gpu=DEVICE,model_storage_directory=None,download_enabled=True)
 
 # Configure logging
 logging.basicConfig(

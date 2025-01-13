@@ -3,15 +3,16 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from pdf_processing import actual_pdf_processing_function,process_content
-from rag import *
-from setup import *
-from typing import List
-from models import CreateQuestionsRequest, QueryRequest, ModuleModel,CourseModel
+from Pdf_processing import actual_pdf_processing_function,process_content
+from Rag import *
+from Setup import *
+from Models import CreateQuestionsRequest, QueryRequest, ModuleModel,CourseModel
+
 import nest_asyncio
 import asyncio
 import shutil
 import time
+from typing import List
 
 nest_asyncio.apply()
 
@@ -27,13 +28,13 @@ app.add_middleware(
 @app.get("/view-data/")
 def view_data():
     # Access the stored documents from the Chroma collection
-    all_data = vector_store._collection.get(include=["documents"])  # Retrieves all documents
+    all_data = CONTENT_DOCUMENT._collection.get(include=["documents"])  # Retrieves all documents
     return {"data": all_data["documents"]}
 
 @app.get("/view-questions/")
 def view_data():
     # Access the stored documents from the Chroma collection
-    all_data = vector_store_questions._collection.get(include=["documents"])  # Retrieves all documents
+    all_data = QUESTION_DOCUMENT._collection.get(include=["documents"])  # Retrieves all documents
     return {"data": all_data["documents"]}
 
 @app.post("/process-pdf/")
@@ -102,7 +103,7 @@ async def process_image_with_retries(image: UploadFile, retries: int = 3, delay:
             logging.info(f"Processing image attempt {attempt + 1}...")
 
             # Define the file extractor for supported image types
-            file_extractor = {".jpg": parser, ".jpeg": parser, ".png": parser}  # Support more formats
+            file_extractor = {".jpg": PARSER, ".jpeg": PARSER, ".png": PARSER}  # Support more formats
 
             # Load the document using the SimpleDirectoryReader
             documents = SimpleDirectoryReader(input_files=[file_location], file_extractor=file_extractor).load_data()
@@ -150,12 +151,14 @@ async def imagetoText(image: UploadFile = File(...)):
 @app.post("/add-modules/")
 async def add_modules_bulk(modules: List[ModuleModel]):
     try:
+        logging.info("Batch processing started for modules.")
         all_documents = []
         all_ids = []
 
         for module in modules:
+            logging.info(f"Processing module with ID: {module.module_id}")
             # Check if the course exists for each module
-            course = vector_store._collection.get(
+            course = CONTENT_DOCUMENT._collection.get(
                 where={"course_id": module.course_id}
             )
             if not course['documents']:
@@ -199,18 +202,46 @@ async def add_modules_bulk(modules: List[ModuleModel]):
                         all_ids.append(f"{module.module_id}_{lesson.lesson_id}_{section.section_id}_{subsection.subsection_id}")
 
         # Add all documents, ids, and metadata to the Chroma collection
-        vector_store.add_documents(documents=all_documents, ids=all_ids)
-
+        CONTENT_DOCUMENT.add_documents(documents=all_documents, ids=all_ids)
+        logging.info("All documents successfully added to Chroma collection.")
+        module_ids = [module.module_id for module in modules]
+        # Notify Laravel
+        await update_module_status(module_ids)
+        
         return {"message": "Modules added successfully"}
 
     except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+async def update_module_status(module_ids: List[int]):
+    """
+    Notify Laravel that modules have been vectorized.
+    """
+
+    laravel_endpoint = f"http://{LARAVEL_IP}:{LARAVEL_PORT}/{UPDATE_MODULE_STATUS_ROUTE}"
+    try:
+        # Notify Laravel about the completed vectorization
+        response = requests.post(
+            laravel_endpoint,
+            json={"module_ids": module_ids},
+        )
+        response.raise_for_status()
+        logging.info(f"Laravel notified successfully for module IDs: {module_ids}")
+        return {"message": "Laravel notified successfully"}
+    except Exception as e:
+        logging.error(f"Failed to notify Laravel: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to notify Laravel: {str(e)}"
+        )
+    
 
 @app.post("/create_course/")
 async def create_course(course: CourseModel):
     try:
+        logging.info('Creating new course')
         # Query the collection to see if a course with the same course_id already exists
-        existing_course = vector_store._collection.get(
+        existing_course = CONTENT_DOCUMENT._collection.get(
             where={"course_id": course.course_id}
         )
 
@@ -225,13 +256,15 @@ async def create_course(course: CourseModel):
         )
         
         # Add the document to the vector store
-        vector_store.add_documents(
+        CONTENT_DOCUMENT.add_documents(
             documents=[course_document],  # Pass Document object
             ids=[str(course.course_id)],
         )
+        logging.info('Course Created successfully')
         return {"message": "Course created successfully", "course_id": course.course_id}
 
     except Exception as e:
+        logging.error(f"Error in creating course {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 from fastapi import HTTPException
@@ -240,7 +273,7 @@ from fastapi import HTTPException
 async def delete_module(module_id: int):
     try:
         # Retrieve all documents associated with the module_id
-        module_related_documents = vector_store._collection.get(
+        module_related_documents = CONTENT_DOCUMENT._collection.get(
             where=lambda doc: doc['metadata'].get('module_id') == module_id
         )
         
@@ -252,7 +285,7 @@ async def delete_module(module_id: int):
             raise HTTPException(status_code=404, detail=f"No module or associated content found for Module ID {module_id}.")
 
         # Delete all documents related to the module_id
-        vector_store._collection.delete(ids=document_ids)
+        CONTENT_DOCUMENT._collection.delete(ids=document_ids)
         
         return {"message": f"Module {module_id} and all associated documents deleted successfully."}
 
@@ -263,7 +296,7 @@ async def delete_module(module_id: int):
 async def delete_course(course_id: int):  # Ensure course_id is an integer
     try:
         # Retrieve all documents associated with the course_id
-        course_documents = vector_store._collection.get(
+        course_documents = CONTENT_DOCUMENT._collection.get(
             where={"course_id": course_id}  # Query with integer course_id
         )
         # Check if any documents are found for the course_id
@@ -274,7 +307,7 @@ async def delete_course(course_id: int):  # Ensure course_id is an integer
             raise HTTPException(status_code=404, detail=f"No course or associated content found for Course ID {course_id}.")
 
         # Delete all documents related to the course_id
-        vector_store._collection.delete(ids=document_ids)
+        CONTENT_DOCUMENT._collection.delete(ids=document_ids)
 
         return {"message": f"Course {course_id} and all associated documents deleted successfully."}
 
@@ -284,16 +317,16 @@ async def delete_course(course_id: int):  # Ensure course_id is an integer
 @app.post("/reset_collection/")
 async def reset_collection():
     try:
-        global vector_store
+        global CONTENT_DOCUMENT
         # Get all documents in the collection
-        all_documents = vector_store._collection.get()
+        all_documents = CONTENT_DOCUMENT._collection.get()
 
         # Extract document IDs from the 'ids' key
         document_ids = all_documents.get('ids', [])
 
         # Delete all documents by their IDs
         if document_ids:
-            vector_store._collection.delete(ids=document_ids)
+            CONTENT_DOCUMENT._collection.delete(ids=document_ids)
 
         return {"message": "All documents cleared from the collection successfully"}
 
@@ -303,24 +336,21 @@ async def reset_collection():
 @app.post("/reset_question_collection/")
 async def reset_collection():
     try:
-        global vector_store_questions
+        global QUESTION_DOCUMENT
         # Get all documents in the collection
-        all_documents = vector_store_questions._collection.get()
+        all_documents = QUESTION_DOCUMENT._collection.get()
 
         # Extract document IDs from the 'ids' key
         document_ids = all_documents.get('ids', [])
 
         # Delete all documents by their IDs
         if document_ids:
-            vector_store_questions._collection.delete(ids=document_ids)
+            QUESTION_DOCUMENT._collection.delete(ids=document_ids)
 
         return {"message": "All documents cleared from the collection successfully"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
-
-    
 
 if __name__ == "__main__":
     import uvicorn
