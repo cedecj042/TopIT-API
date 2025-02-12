@@ -1,153 +1,151 @@
-MULTIPLE_CHOICE_SINGLE = """{
-    "question": "What is the primary function of a compiler?",
-    "questionType": "Multiple Choice - Single",
-    "answer": "Compilation",
-    "choices": ["Execution","Compilation","Interpretation","Debugging"]
+#constants
+
+multiple_choice_very_easy = """
+                  {numberOfQuestions} Very Easy (Remember) questions
+                  - Ensure to generate exactly 1 sentence with 5-10 words.
+                  - You must *strictly* use at least 1 of the following verbs: state, list, recite, define, name, quote, recall, identify, label, recognize.
+                  - Simple, clear, concise, and focused on basic Comprehension or recall.
+                  - Avoid unnecessary complexity or ambiguous phrasing.
+                  - Ensure the questions are gramatically correct.
+                """
+
+
+multiple_choice_easy = """{numberOfQuestions} Easy (Understand) questions with exactly 2 sentences with 18 words.
+                  - **Strictly** Use the following verbs within the question with their suffixes. Example use case of the verbs: "when classifying...", "In comparing...", "In contrasting...", "Client explained...", "",
+                  - Refer to these verbs with their suffix:
+                    classifying, classified, comparing, compared, contrasting, contrasted, demonstrating, demonstrated,
+                    explaining,explained, illustrating,illustrated, inferring,inferred, interpreting, interpreted, outlining,outlined,
+                    relating,related, rephrasing,rephrased, showing,shown, summarizing,summarized, translating,translated
+                    discussing,discussed, describing,describedl, using,used, writing,write, giving,gave, defining,defined, identify, determinining,determined
+
+                  - ensure to use the verbs appropriately for each question. It should be grammatically correct.
+                  - Emphasize basic interpretative understanding
+                  - Avoid unnecessary complexity or ambiguous phrasing.
+                  - ensure the difficulty level is 'Easy'
+                  - **Strictly** ensure to divide all questions into a form of: ** Fill in the blanks**(Don't include "fill in the blanks" in the question sentence), **Questions that uses interrogative pronouns(Don't use 'how')**, ** Complete the sentence questions(Don't include "complete the sentence" in the question sentence)** where the answer logically completes the idea."
+                  - CRITICAL GUIDELINES FOR QUESTION CONSTRUCTION:
+                       - The answer MUST NOT be directly stated within the question
+                       - Create questions that require careful reading and interpretation
+                       - Ensure the correct answer is NOT obvious from the question's wording
+                       - Construct choices that require thoughtful analysis
+                 """
+multiple_choice_average = """
+                {numberOfQuestions} Average (Apply) with exactly 30 words(maximum of 2 sentences).
+                  - You must *strictly* use atleast 1 of the following verbs: calculate, predict, apply, solve, use, demonstrate, model, perform, present.
+                  - Provide **realistic and practical scenarios** related to {module}.
+                  - ensure the answer is in the choices
+                  - When creating questions, ensure to alternate between these 2 types:
+                    1. **Situational questions** that will test an individual's critical thinking and problem-solving abilities. Start the questions with scenario(don't include the word 'scenario') followed with situational questions about the scenarios.
+                    2. Basic coding/programming/computational questions if applicable in {module}.
+                   """
+multiple_choice_hard = """
+                {numberOfQuestions} Hard (Analyze) with exactly 45 words(maximum of 3 sentences).
+                    - You must *strictly* use atleast 1 of the following verbs: distinguish, classify, break down, categorize, analyze, diagram, illustrate, criticize, simplify, associate.
+                    - Provide **realistic and practical scenarios** related to {module}.
+                    - Provide **situational questions** that will test an individual's critical thinking and problem-solving abilities. Start the questions with a scenario (don't include the word 'scenario') followed with situational questions about the scenarios.
+                    - Provide complex coding/programming questions if applicable in {module} and Computational/analytical questions. """
+
+
+multiple_choice_very_hard = """
+                {numberOfQuestions} Very Hard (Evaluate) with exactly 3 sentences(maximum of 60 words).
+                    - You must *strictly* use atleast 1 of the following verbs:  critique, decide, justify, argue, choose, relate, determine, defend, judge, grade, compare, support, convince, select, evaluate.
+                    - Provide **realistic and practical scenarios** related to {module}.
+                    - Provide **situational questions** that will test an individual's critical thinking and problem-solving abilities. Start the questions with scenario(don't include the word 'scenario') followed with situational questions about the scenarios.
+                    - Provide sophisticated coding/programming questions if applicable in {module} and Computational/analytical questions.
+                    - ensure the difficulty level is 'very hard' """
+identification_very_easy = """
+                {numberOfQuestions} Very Easy (Remember) questions with exactly 1 sentence with 13 words.
+                  - You must *strictly* use at least 1 of the following verbs: state, list, recite, outline, define, name, quote, recall, identify, label, recognize.
+                  - Simple, clear, concise, and focused on basic Comprehension or recall.
+                  - Avoid unnecessary complexity or ambiguous phrasing.
+                  - Generate objective identification questions only. Don't use verbs that requires subjective answer.
+                  - **Strictly** ensure to divide all questions into a form of: ** Fill in the blanks**(Don't include "fill in the blanks" in the question sentence), **Questions that uses interrogative pronouns**, ** Complete the sentence questions(Don't include "complete the sentence" in the question sentence)** where the answer logically completes the idea."
+                """
+
+identification_easy = """
+                {numberOfQuestions} Easy (Understand) questions with exactly 2 sentences with 18 words.
+                  - **Strictly** Use the following verbs within the question with their suffixes to ensure questions being generated are identification questions with 1 -3 words as the answer. Example use case of the verbs: "when classifying...", "In comparing...", "In contrasting...", "Client explained...", "",
+                  - Refer to these verbs with their suffix:
+                    classifying, classified, comparing, compared, contrasting, contrasted, demonstrating, demonstrated,
+                    explaining,explained, illustrating,illustrated, inferring,inferred, interpreting, interpreted, outlining,outlined,
+                    relating,related, rephrasing,rephrased, showing,shown, summarizing,summarized, translating,translated
+                    discussing,discussed, describing,describedl, using,used, writing,write, giving,gave, defining,defined, identify, determinining,determined
+
+                  - ensure to use the verbs appropriately for each question. It should be grammatically correct.
+                  - Emphasize basic interpretative understanding
+                  - Avoid unnecessary complexity or ambiguous phrasing.
+                  - ensure the difficulty level is 'Easy'
+                  - **Strictly** ensure to divide all questions into a form of: ** Fill in the blanks**(Don't include "fill in the blanks" in the question sentence), **Questions that uses interrogative pronouns(Don't use 'how')**, ** Complete the sentence questions(Don't include "complete the sentence" in the question sentence)** where the answer logically completes the idea."
+                  - CRITICAL GUIDELINES FOR QUESTION CONSTRUCTION:
+                       - The answer MUST NOT be directly stated within the question
+                       - Create questions that require careful reading and interpretation
+                       - Ensure the correct answer is NOT obvious from the question's wording
+                       - Construct choices that require thoughtful analysis
+                 """
+
+identification_average = """
+                {numberOfQuestions} Average (Apply)
+                  - Total words should be 20-30 words
+                  - You must *strictly* use atleast 1 of the following verbs (with suffix): calculating, calculated, predicting,predicted, applying, applied, solving,solved, using, used, demonstrating, demonstrated, modeling, modeled, performing, performed, presenting, presented.
+                  - Ensure to use the verbs appropriately to the questions. It must be gramatically correct.
+                  - Provide **situational questions** that will test an individual's critical thinking and problem-solving abilities. Sentence 1: Start the questions with scenario(don't include the word 'scenario') Sentence 2: followed with situational questions about the scenarios.
+                  - Provide basic coding/programming questions if applicable in {module}.
+
+                  - **Strictly** ensure to divide all questions into a form of: ** Fill in the blanks**(Don't include "fill in the blanks" in the question sentence), **Questions that uses interrogative pronouns(Don't use 'how')**, ** Complete the sentence questions(Don't include "complete the sentence" in the question sentence)** where the answer logically completes the idea."
+                   """
+identification_hard = """
+                {numberOfQuestions} Hard (Analyze)
+                     - total words should be 35 - 45 words.
+                     - **Strictly** Use the following verbs within the question with their suffixes to ensure questions being generated are identification questions with 1 -3 words as the answer. Example use case of the verbs: "when distinguishing...", "When examining...", "Client emphasized...", "Client outlined...", "",
+                     - Refer to these verbs with their suffix:
+                      comparing, compared, distinguishing, distinguished, break down, categorizing, categorized, analyzing, analyzed, diagram, illustrating, illustrated, criticizing, criticized,
+                      discussing, discussed, differentiating, differentiate, developing, developed, deriving, derived, outlining, outlined, determining, determined, examining, examined, investigation, investigate
+                    - Ensure to use the verbs appropriately to the questions. It must be gramatically correct.
+                    - Provide **situational questions** that will test an individual's critical thinking and problem-solving abilities. Sentence 1: Start the questions with scenario(don't include the word 'scenario') Sentence 2: Continuation of the scenario Sentence 3: followed with situational questions about the scenarios. It can be in a form of ** Fill in the blanks**(Don't include "fill in the blanks" in the question sentence), **Questions that uses interrogative pronouns(Don't use 'how')**, ** Complete the sentence questions(Don't include "complete the sentence" in the question sentence)** where the answer logically completes the idea."
+                    - Provide complex coding/programming questions if applicable in {module} and Computational/analytical questions.
+
+                    """
+
+identification_very_hard = """
+                {numberOfQuestions} Very Hard (Evaluate)
+                    - Questions must have exactly 3 sentences, 16-20 words each.
+                    - Each sentence must incorporate evaluation verbs with appropriate suffixes:
+                    (e.g., appraising/appraised, arguing/argued, assessing/assessed, comparing/compared, concluding/concluded, considering/considered,
+                    contrasting/contrasted, convincing/convinced, criticizing/criticized, critiquing/critiqued, deciding/decided, determining/determined,
+                    discriminating/discriminated, evaluating/evaluated, grading/graded, judging/judged, justifying/justified, measuring/measured,
+                    ranking/ranked, rating/rated, recommending/recommended, reviewing/reviewed, scoring/scored, selecting/selected, standardizing/standardized,
+                    supporting/supported, testing/tested, validating/validated, choosing/chosen, relating/related, defending/defended)
+                    - All scenarios must include specific measurement criteria, metrics, or standards for objective evaluation.
+
+                    Question Structure:
+
+                    For Situational Questions:
+                    Sentence 1: Context with defined evaluation criteria/metrics
+                    Sentence 2: Specific situation using evaluation verb with suffix
+                    Sentence 3: Objective identification question (Fill-in-blanks/Which/What/Complete-the-sentence)
+
+                    For Programming Questions:
+                    Sentence 1: Context with performance metrics/requirements
+                    Sentence 2: Code snippet with evaluation parameters
+                    Sentence 3: Objective identification question about code outcomes
+
+                    Requirements:
+                    - Use 1-2 verbs from: appraise, assess, compare, evaluate, grade, judge, measure, rank, rate, review, score, validate
+                     """
+
+multiple_choice_single = """{
+    "question": "{input_the_question_in_here}",
+    "answer": "{answer_in_here}",
+    "choices": ["{choice_in_here}","{choice_in_here}","{choice_in_here}","{choice_in_here}"]
 },"""
 
-MULTIPLE_CHOICE_MANY = """{
-    "question": "Which of the following programming languages is known for its simplicity and ease of use?",
-    "questionType": "Multiple Choice - Many",
-    "answer": ["Python","Ruby"],
-    "choices": ["Java","C++","Python","Ruby"]
+multiple_choice_many = """{
+    "question": "{input_the_question_in_here}",
+    "answer": ["{answer_in_here}","{answer_in_here}"],
+    "choices": ["{choice_in_here}","{choice_in_here}","{choice_in_here}","{choice_in_here}"]
 },"""
 
-IDENTIFICATION = """ {
-    "question": "What is the output of the following Python code: `a = [1, 2, 3, 4]; print(a[::-1])`?",
-    "questionType": "Identification",
-    "answer": ["[4, 3, 2, 1]", "4,3,2,1"],
+identification = """ {
+    "question": "{input_the_question_in_here}",
+    "answer": "{answer_in_here}",
 }"""
-
-QUESTION_TYPES = [
-    "Identification",
-    "Multiple Choice - Single",
-    "Multiple Choice - Many",
-]
-
-MULTIPLE_CHOICE_KEYS = {
-    "question",
-    "questionType",
-    "answer",
-    "choices",
-}
-
-IDENTIFICATION_KEYS = {
-    "question",
-    "questionType",
-    "answer",
-}
-
-
-QUESTION_RULES = {
-    """
-    Multiple Choice - Single:
-    - Must have only 1 answer.
-    Keys: 
-    {MULTIPLE_CHOICE_KEYS}
-    Example: 
-    {MULTIPLE_CHOICE_SINGLE}
-    Multiple Choice - Many:
-    - Must have atleast 2 answers and dont put only 1 answer
-    Keys: 
-    {MULTIPLE_CHOICE_KEYS}
-    Example:
-    {MULTIPLE_CHOICE_MANY}
-    Identification - Identification answers must have a maximum of 3 words.
-                    Avoid questions that has subjective answers and only concrete and objective answers are needed.
-                    Keep it concise and relevant.
-                    Keys:
-                    {IDENTIFICATION_KEYS}
-                    Example:
-                    {IDENTIFICATION}
-    """
-}
-
-
-EXAMPLE = {
-    """
-    {
-        "question": "What is the primary function of a compiler?",
-        "questionType": "Multiple Choice - Single",
-        "answer": "Compilation",
-        "choices": ["Execution","Compilation","Interpretation","Debugging"]
-    },
-    {
-        "question": "Which of the following programming languages is known for its simplicity and ease of use?",
-        "questionType": "Multiple Choice - Many",
-        "answer": ["Python","Ruby"],
-        "choices": ["Java","C++","Python","Ruby"]
-    },
-    {
-        "question": "What is the output of the following Python code: `a = [1, 2, 3, 4]; print(a[::-1])`?",
-        "questionType": "Identification",
-        "answer": ["[4, 3, 2, 1]", "4,3,2,1"],
-    }
-    """
-    
-}
-
-BLOOMS_MAPPING = {
-    "Remember": {
-        "difficulty": "Very Easy",
-        "description": "Retrieving relevant knowledge from long-term memory.",
-        "examples": [
-            "Name the data type in Python used to store a collection of unique items.",
-            "What is the default port for HTTP connections in web servers?",
-            "Which of the following is an example of a relational database?",
-            "What is the command to list files and directories in Linux?",
-            "Which layer of the OSI model is responsible for routing data between networks?",
-        ],
-    },
-    "Understand": {
-        "difficulty": "Easy",
-        "description": "Constructing meaning from oral, written, and graphic messages.",
-        "examples": [
-            "Explain the difference between client-side and server-side scripting.",
-            "Which of the following best describes a foreign key in a relational database?",
-            "What is the purpose of normalization in database design?",
-            "Which statement about REST APIs is correct?",
-            "In object-oriented programming, what do you understand by encapsulation?",
-        ],
-    },
-    "Apply": {
-        "difficulty": "Average",
-        "description": "Applying knowledge to solve problems or execute tasks.",
-        "examples": [
-            "Write a SQL query to retrieve all employees earning more than $50,000 from a table named employees.",
-            "Which of the following algorithms would you use to sort a large dataset efficiently?",
-            "What is the output of the following Python code: a = [1, 2, 3, 4]; print(a[::-1])?",
-            "Solve a budget overrun in party planning by showing how to reduce costs on decorations or catering.",
-            "Calculate average waiting time and turnaround time using the Round Robin Algorithm with Quantum time = 2.",
-        ],
-    },
-    "Analyze": {
-        "difficulty": "Hard",
-        "description": "Breaking down information into components and analyzing relationships.",
-        "examples": [
-            "Analyze the space complexity of def sum_list(lst): return sum(lst).",
-            "Identify the time complexity of this function: def sum_array(arr): for i in range(len(arr)): for j in range(len(arr)): print(i, j).",
-            "Troubleshoot a web application crash during peak hours and suggest the most likely root cause.",
-            "Compare air cooling versus liquid cooling systems for electric vehicle battery packs.",
-            "Analyze challenges in microservices architecture, such as inconsistent data synchronization.",
-        ],
-    },
-    "Evaluate": {
-        "difficulty": "Very Hard",
-        "description": "Making judgments and recommendations based on criteria and standards.",
-        "examples": [
-            "Evaluate the pros and cons of using NoSQL databases over relational databases.",
-            "Which factor is most important when choosing a cloud service provider?",
-            "Recommend improvements for this SQL query: SELECT * FROM employees WHERE department = 'IT'.",
-            "Suggest solutions for data synchronization issues in an analytics dashboard.",
-            "Argue which programming paradigm is best for projects requiring high concurrency and why.",
-        ],
-    },
-}
-
-DIFFICULTY_TO_BLOOMS = {
-    "Very Easy": "Remember",
-    "Easy": "Understand",
-    "Average": "Apply",
-    "Hard": "Analyze",
-    "Very Hard": "Evaluate",
-}
