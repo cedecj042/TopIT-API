@@ -1,5 +1,5 @@
 
-from Setup import *
+from setup import *
 
 #regex
 import re,uuid,requests
@@ -128,11 +128,11 @@ def normalize(value, raw_min, raw_max, target_min, target_max):
   return target_min + (value + raw_min) * (target_max - target_min) / (raw_max - raw_min)
 
 difficulty_ranges = {
-    "Very Easy": (-5.0, -3.0),
-    "Easy": (-2.9, -1.0),
-    "Average": (-0.9, 1.0),
-    "Hard": (1.1, 3.0),
-    "Very Hard": (3.1, 5.0),
+    "very easy": (-5.0, -3.0),
+    "easy": (-2.9, -1.0),
+    "average": (-0.9, 1.0),
+    "hard": (1.1, 3.0),
+    "very hard": (3.1, 5.0),
 }
 
 def predict_difficulty_value(text, difficulty_Level):
@@ -323,3 +323,4 @@ def checkExactMatch(query_text, similarity_threshold=0.90):
             return doc.page_content, doc.metadata
     
     return None
+
