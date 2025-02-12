@@ -17,7 +17,7 @@ import torch
 import easyocr
 import pickle
 
-from  Models import CombinedDistilBERT, QuestionEmbeddings
+from  models import CombinedDistilBERT, QuestionEmbeddings
 from transformers import DistilBertTokenizer
 
 from dotenv import load_dotenv
@@ -45,6 +45,9 @@ FASTER_RCNN_CONFIG_PATH = os.getenv('FASTER_RCNN_CONFIG_PATH')
 FASTER_RCNN_MODEL_PATH = os.getenv('FASTER_RCNN_MODEL_PATH')
 CHROMA_PERSIST_DIR = os.getenv('CHROMA_PERSIST_DIR')
 NLTK_DATA_DIR = os.getenv('NLTK_DATA_DIR')
+
+RANDOM_FOREST_CLASSIFIER_PATH = os.getenv('RF_CLASSIFIER_PATH')
+TFIDF_PATH = os.getenv('TFIDF_PATH')
 
 LABEL_ENCODER_PATH = os.getenv('LABEL_ENCODER_PATH')
 FEATURE_STATS_PATH = os.getenv('FEATURE_STATS_PATH')
@@ -78,7 +81,6 @@ SBERT = HuggingFaceEmbeddings(
     encode_kwargs=ENCODE_KWARGS
 )
 
-
 # question difficulty estimation model 
 MAX_LEN = 128
 LABEL_ENCODER = joblib.load(LABEL_ENCODER_PATH)
@@ -98,6 +100,8 @@ DISTILBERT_EMBEDDING = QuestionEmbeddings(
     max_len=MAX_LEN
 )
 
+RF_CLASSIFIER = joblib.load(RANDOM_FOREST_CLASSIFIER_PATH)
+TFIDF = joblib.load(TFIDF_PATH)
 
 CONTENT_DOCUMENT = Chroma(
     collection_name="TopIT",
