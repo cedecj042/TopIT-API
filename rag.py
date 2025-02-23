@@ -232,19 +232,21 @@ def ModelQuerywithRAG(input, course_title, module_id):
 correct_keys_for_multiple_choice = {
         "question",
         "answer",
-        "choices"
+        "choices",
+        "questionType"
     }
 
 correct_keys_for_identification = {
         "question",
         "answer",
+        "questionType"
     }
-    
-def validate_answers_keys(result, questionType):
+
+def validate_answers_and_keys(result, questionType):
 
     if questionType == "Identification":
         #remove trailing period for answer
-        result['answer'] = re.sub(r"\.$", "", result['answer']) 
+        result['answer'] = re.sub(r"\.$", "", result['answer'])
 
         answer = result['answer'].split()
 
@@ -257,8 +259,22 @@ def validate_answers_keys(result, questionType):
 
 
     if questionType == "Multiple Choice - Many":
+
+        if not isinstance(result['answer'], list):
+            raise ValueError("Answer should be a list")
+
+        #check if all keys are correct
+        for key in result:
+            if key not in correct_keys_for_multiple_choice:
+                raise ValueError(f'{key} not in the correct keys for multiple choice question type')
+
+        #check if all keys exist
+        for key in correct_keys_for_multiple_choice:
+            if key not in result:
+                raise ValueError(f'{key} not in the result')
+
         #remove trailing period for answer
-        result['answer'] = result['answer'] = [re.sub(r"\.$", "", res) for res in result['choices'] 
+        result['answer'] = result['answer'] = [re.sub(r"\.$", "", res) for res in result['choices']
                                                ]
         #removing trailing period for choices
         result['choices'] = [re.sub(r"\.$", "", res) for res in result['choices'] ]
@@ -279,8 +295,22 @@ def validate_answers_keys(result, questionType):
                 raise ValueError(f'{key} not in the correct keys for multiple choice question type')
 
     if questionType == "Multiple Choice - Single":
+
+        #check if all keys exist
+        for key in correct_keys_for_multiple_choice:
+            if key not in result:
+                raise ValueError(f'{key} not in the result')
+
+        #check if all keys are correct
+        for key in result:
+            if key not in correct_keys_for_multiple_choice:
+                raise ValueError(f'{key} not in the correct keys for multiple choice question type')
+
+        if isinstance(result['answer'], list):
+            raise ValueError("Answer should not be a list")
+
         #remove trailing period for answer
-        result['answer'] = re.sub(r"\.$", "", result['answer']) 
+        result['answer'] = re.sub(r"\.$", "", result['answer'])
 
         #removing trailing period for choices
         result['choices'] = [re.sub(r"\.$", "", res) for res in result['choices'] ]
@@ -290,11 +320,8 @@ def validate_answers_keys(result, questionType):
         #check if answers is in the choices
         if correct_answer not in result['choices']:
             raise ValueError(f"Correct answer '{correct_answer}' is not found in the choices.")
-        
-        #check if all keys are correct
-        for key in result:
-            if key not in correct_keys_for_multiple_choice:
-                raise ValueError(f'{key} not in the correct keys for multiple choice question type')
+
+
 
 def checkExactMatch(query_text, similarity_threshold=0.90):
     """
@@ -307,7 +334,7 @@ def checkExactMatch(query_text, similarity_threshold=0.90):
     Returns:
         tuple or None: (document, metadata) if a match is found, otherwise None.
     """
-    results =   QUESTION_DOCUMENT.similarity_search_with_score(
+    results = QUESTION_DOCUMENT.similarity_search_with_score(
         query=query_text,
         k=5
     )
@@ -323,10 +350,10 @@ def checkExactMatch(query_text, similarity_threshold=0.90):
     return None
 
 
+
 class QuestionFormat(BaseModel):
     course_id: int
     course_title: str
-    questionType: str
     numOfVeryEasy: int
     numOfEasy: int
     numOfAverage: int
@@ -393,20 +420,10 @@ def generate_questions_with_retry(instructions, data, module, max_retries=3):
     print("Failed to generate questions after multiple attempts")
     return []
 
+
 def createQuestions(data: QuestionFormat):
 
-    # Define the question type
-    if data.questionType == "Multiple Choice - Single":
-        example = multiple_choice_single
-        questionTypewithDescription = "Multiple Choice - Single(must have only 1 correct answer)"
-    elif data.questionType == "Multiple Choice - Many":
-        example = multiple_choice_many
-        questionTypewithDescription = "Multiple Choice - Many(must have atleast 2 answers and a maxium of 4 answers)"
-    elif data.questionType == "Identification":
-        example = identification
-        questionTypewithDescription = "Identification (must have a maximum of 3 words in 1 correct answer)"
-
-    
+   #for iteration through the difficulty levels
     difficulty_levels = [
           {'level': 'Very Easy(Remember)', 'max_count': data.numOfVeryEasy, 'counter': 0, 'predicted_class': 'very easy'},
           {'level': 'Easy(Understand)', 'max_count': data.numOfEasy, 'counter': 0, 'predicted_class': 'easy'},
@@ -445,53 +462,53 @@ def createQuestions(data: QuestionFormat):
             else:
               numberOfQuestions = count + 3
 
-            if data.questionType == "Identification":
+            #number of questions per multiple choice
+            half = round(numberOfQuestions/2)
+
+            #number of questions per identication sub category(fill in the blanks, interogative, complete teh sentence)
+            num_of_identification = round(numberOfQuestions/3)
+
+            if level['level'] == 'Very Easy(Remember)':
               instructions = f"""
-              Generate {numberOfQuestions} **objective test question and answer pair** in the form of {questionTypewithDescription} based only on the provided content from the module {module} in {data.course_title} course.
+              Generate {numberOfQuestions} **objective test question and answer pair** in the form of Identification (must have a maximum of 3 words in 1 correct answer) based only on the provided content from the module {module} in {data.course_title} course.
               Objective test questions are questions that have specific answer/s (meaning they are not subjective).
 
               Avoid generating questions that uses "how" as it requires a subjective answer. Meaning, it does not result to identification questions.
-              
+
               **Strictly** ensure to divide all questions into a form of: ** Fill in the blanks**(Don't include "fill in the blanks" in the question sentence), **Questions that uses interrogative pronouns(Don't use 'how')**, ** Complete the sentence questions(Don't include "complete the sentence" in the question sentence)** where the answer logically completes the idea."
+
+              Follow this format:
+
+              {num_of_identification} fill in the blanks questions
+              {num_of_identification} Questions that uses interrogative pronouns
+              {num_of_identification} Complete the sentence questions
               """
-              if level['level'] == 'Very Easy(Remember)':
-                instructions += identification_very_easy.format(numberOfQuestions=numberOfQuestions, module=module)
-
-              elif level['level'] == 'Easy(Understand)':
-                  instructions += identification_easy.format(numberOfQuestions=numberOfQuestions, module=module)
-
-              elif level['level'] == 'Average(Apply)':
-                  instructions += identification_average.format(numberOfQuestions=numberOfQuestions, module=module)
-
-              elif level['level'] == 'Hard(Analyze)':
-                  instructions += identification_hard.format(numberOfQuestions=numberOfQuestions, module=module)
-
-              elif level['level'] == 'Very Hard(Evaluate)':
-                  instructions += identification_very_hard.format(numberOfQuestions=numberOfQuestions, module=module)
+              
+              instructions += identification_very_easy
 
             else:
               instructions = f"""
-              Generate {numberOfQuestions} **objective test question and answer pair** in the form of {questionTypewithDescription} based only on the provided content from the module {module} in {data.course_title} course.
+              Generate {numberOfQuestions} **objective test question and answer pair** in the form of Multiple Choice - Single(must have only 1 correct answer) and Multiple Choice - Many(must have atleast 2 answers and a maxium of 4 answers) based only on the provided content from the module {module} in {data.course_title} course.
               Objective test questions are questions that have specific answer/s (meaning they are not subjective).
 
               **Strictly** Ensure the answers for each question are in the choices.
+
+              Follow this structure when generating questions: 
+              
               """
-
-              if level['level'] == 'Very Easy(Remember)':
-                  instructions += multiple_choice_very_easy.format(numberOfQuestions=numberOfQuestions, module=module)
-
-              elif level['level'] == 'Easy(Understand)':
-                  instructions += multiple_choice_easy.format(numberOfQuestions=numberOfQuestions, module=module)
+              if level['level'] == 'Easy(Understand)':
+                  instructions += multiple_choice_easy
 
               elif level['level'] == 'Average(Apply)':
                   instructions += multiple_choice_average.format(numberOfQuestions=numberOfQuestions, module=module)
-
+                 
               elif level['level'] == 'Hard(Analyze)':
                   instructions += multiple_choice_hard.format(numberOfQuestions=numberOfQuestions, module=module)
 
               elif level['level'] == 'Very Hard(Evaluate)':
                   instructions += multiple_choice_very_hard.format(numberOfQuestions=numberOfQuestions, module=module)
-
+              
+            
             instructions += f"""
             Ensure the answers are not stated in the question.
             All questions should be suitable for the **TOPCIT exam format**, balancing clarity and challenge.
@@ -499,9 +516,20 @@ def createQuestions(data: QuestionFormat):
             It should be stored in a JSON format like this and don't put any text beside this:
             The **output must be in this exact JSON format stored in an array []**:
 
+            """
+            if level['level'] == 'Very Easy(Remember)':
+              instructions += f"""
             ```json
             {{
-            {example}
+            {identification}
+            }}"""
+
+            else: 
+              instructions += f"""
+            ```json
+            {{
+              {multiple_choice_single} 
+              {multiple_choice_many}
             }}"""
 
             generated_questions = generate_questions_with_retry(instructions, data, module)
@@ -512,14 +540,24 @@ def createQuestions(data: QuestionFormat):
             #loop through the generated questions
             for res in generated_questions:
 
-                #check for
+                #assigning multiple-single if answer is in not a list otherwise multiple-many
+                if isinstance(res['answer'], list):
+                  res['questionType'] = 'Multiple Choice - Many'
+                else:
+                  res['questionType'] = 'Multiple Choice - Single'
+                
+                #assign identification questiontype if generated questions are very easy(remember)
+                if level['level'] == 'Very Easy(Remember)':
+                    res['questionType'] = 'Identification'
+
+                #check for correct keys
                 try:
-                    validate_answers_and_keys(res, data.questionType)
+                    validate_answers_and_keys(res, res['questionType'])
                 except ValueError as e:
                     print(f"Validation Error: {e}")
                     continue
 
-                # # Skip if question already exists
+                # Skip if question already exists
                 if res['question'] in result_questions:
                     print("\n\nquestion already exist")
                     continue
@@ -528,7 +566,6 @@ def createQuestions(data: QuestionFormat):
                 question_text = clean_text(res['question'])
                 predicted_class = RF_CLASSIFIER.predict(TFIDF.transform([question_text]))[0]
                 difficulty_value  = predict_difficulty_value(question_text, predicted_class)
-                
 
 
                 #checks if the question is already in the questions vectordb
@@ -538,7 +575,6 @@ def createQuestions(data: QuestionFormat):
 
                 res['difficulty_level'] = predicted_class
                 res['difficulty_value'] = difficulty_value
-                res['question_type'] = data.questionType
                 res['discrimination'] = get_discrimination(predicted_class)
 
                 #check if max count of the difficulty level has been reached
@@ -614,7 +650,6 @@ if __name__ == "__main__":
     data = QuestionFormat(
         course_id=1,
         course_title="Software Development",
-        questionType="Multiple Choice - Single",
         numOfVeryEasy=30,
         numOfEasy=30,
         numOfAverage=30,
