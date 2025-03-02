@@ -95,19 +95,6 @@ LABEL_ENCODER = joblib.load(LABEL_ENCODER_PATH)
 LABEL_CLASSES = len(LABEL_ENCODER.classes_) 
 FEATURE_STATS = joblib.load(FEATURE_STATS_PATH)
 
-DISTILBERT_MODEL = CombinedDistilBERT(num_classes=len(LABEL_ENCODER.classes_) , feature_dim=7)
-DISTILBERT_TOKENIZER = DistilBertTokenizer.from_pretrained(DISTILBERT_TOKENIZER_PATH, clean_up_tokenization_spaces=True)
-
-# Load the saved weights
-DISTILBERT_MODEL.load_state_dict(torch.load(DISTILBERT_MODEL_PATH,map_location=DEVICE,weights_only=True))
-DISTILBERT_MODEL.eval()  # Set to evaluation mode
-
-DISTILBERT_EMBEDDING = QuestionEmbeddings(
-    tokenizer=DISTILBERT_TOKENIZER,
-    model=DISTILBERT_MODEL,
-    max_len=MAX_LEN
-)
-
 SCALER = joblib.load("RandomForest/updated_scaler.pkl")
 TFIDF_VECTORIZER = joblib.load("RandomForest/updated_tfidf_vectorizer.pkl")
 RANDOM_FOREST_MODEL = joblib.load("RandomForest/updated_trained_model.pkl")
