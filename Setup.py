@@ -18,7 +18,8 @@ import torch
 import easyocr
 import pickle
 
-from transformers import AutoProcessor, LayoutLMv2Model
+from huggingface_hub import hf_hub_download
+
 import torch
 from PIL import Image
 import requests
@@ -33,15 +34,25 @@ nltk.download('punkt',quiet=True)
 nltk.download('punkt_tab',quiet=True)
 nltk.download('wordnet',quiet=True)
 
+
 API_KEY = os.getenv("OPENAI_API_KEY")
 LARAVEL_IP = os.getenv('LARAVEL_IP_ADDRESS')
 LARAVEL_PORT = os.getenv("LARAVEL_PORT")
 API_KEY_LLAMAPARSE = os.getenv("LLAMA_CLOUD_API_KEY")
 
+# Hugging Face model repository details
+repo_id = "lepuer/layout_parser"
+config_path = hf_hub_download(repo_id=repo_id, filename="config.yaml")
+model_path = hf_hub_download(repo_id=repo_id, filename="model_final.pth")
 
-model_name = "lepuer/layout_parser"
-processor = AutoProcessor.from_pretrained(model_name)
-model = LayoutLMv2Model.from_pretrained(model_name)
+
+# Initialize Detectron2LayoutModel using downloaded files
+DETECTRON_MODEL = lp.Detectron2LayoutModel(
+    config_path=config_path,
+    model_path=model_path,
+    extra_config=["MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.7],
+    label_map={0: "Caption", 1: "Code", 2: "Figures", 3: "Header", 4: "Lesson", 5: "Module", 6: "Section", 7: "Subsection", 8: "Tables", 9: "Text"}
+)
 
 STORE_PDF_ROUTE = "admin/store-processed-pdf/"
 UPDATE_MODULE_STATUS_ROUTE = "admin/update-module-status"
@@ -69,12 +80,12 @@ PARSER = LlamaParse(
     result_type="text"
 )
 
-DETECTRON_MODEL = lp.Detectron2LayoutModel(
-    config_path=FASTER_RCNN_CONFIG_PATH,
-    model_path=FASTER_RCNN_MODEL_PATH,
-    extra_config=["MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.7],
-    label_map={0: "Caption", 1: "Code", 2: "Figures", 3: "Header", 4: "Lesson", 5: "Module", 6: "Section", 7: "Subsection", 8: "Tables", 9: "Text"}
-)
+# DETECTRON_MODEL = lp.Detectron2LayoutModel(
+#     config_path=FASTER_RCNN_CONFIG_PATH,
+#     model_path=FASTER_RCNN_MODEL_PATH,
+#     extra_config=["MODEL.ROI_HEADS.SCORE_THRESH_TEST", 0.7],
+#     label_map={0: "Caption", 1: "Code", 2: "Figures", 3: "Header", 4: "Lesson", 5: "Module", 6: "Section", 7: "Subsection", 8: "Tables", 9: "Text"}
+# )
 
 EMBEDDING_MODEL = SentenceTransformer('all-MiniLM-L6-v2') 
 
