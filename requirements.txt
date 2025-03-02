@@ -15,6 +15,7 @@ langchain_chroma
 langchain_core
 langchain_huggingface
 langchain_openai
+huggingface_hub
 sentence-transformers
 langchain-openai
 chromadb
@@ -24,5 +25,9 @@ llama_parse
 layoutparser
 scikit-learn==1.6.0
 textstat
+transformers 
+torch 
+torchvision 
+detectron2
 inflect
 nltk

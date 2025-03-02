@@ -1,4 +1,5 @@
 import os
+from huggingface_hub import hf_hub_download
 import layoutparser as lp
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -17,8 +18,11 @@ import torch
 import easyocr
 import pickle
 
-from  Models import CombinedDistilBERT, QuestionEmbeddings
-from transformers import DistilBertTokenizer
+from transformers import AutoProcessor, LayoutLMv2Model
+import torch
+from PIL import Image
+import requests
+
 
 from dotenv import load_dotenv
 load_dotenv() 
@@ -34,13 +38,21 @@ LARAVEL_IP = os.getenv('LARAVEL_IP_ADDRESS')
 LARAVEL_PORT = os.getenv("LARAVEL_PORT")
 API_KEY_LLAMAPARSE = os.getenv("LLAMA_CLOUD_API_KEY")
 
-# Routes
+
+model_name = "lepuer/layout_parser"
+processor = AutoProcessor.from_pretrained(model_name)
+model = LayoutLMv2Model.from_pretrained(model_name)
+
 STORE_PDF_ROUTE = "admin/store-processed-pdf/"
 UPDATE_MODULE_STATUS_ROUTE = "admin/update-module-status"
 STORE_QUESTION_ROUTE = "admin/store-questions"
 
-FASTER_RCNN_CONFIG_PATH = os.getenv('FASTER_RCNN_CONFIG_PATH')
-FASTER_RCNN_MODEL_PATH = os.getenv('FASTER_RCNN_MODEL_PATH')
+FASTER_RCNN_REPO_ID = "lepuer/layout_parser"
+FASTER_RCNN_FILENAME = "model_final.pth" 
+FASTER_RCNN_MODEL_PATH = hf_hub_download(repo_id=FASTER_RCNN_REPO_ID, filename=FASTER_RCNN_FILENAME)
+FASTER_RCNN_CONFIG_PATH = hf_hub_download(repo_id=FASTER_RCNN_REPO_ID, filename="config.yaml")
+
+
 CHROMA_PERSIST_DIR = os.getenv('CHROMA_PERSIST_DIR')
 NLTK_DATA_DIR = os.getenv('NLTK_DATA_DIR')
 
