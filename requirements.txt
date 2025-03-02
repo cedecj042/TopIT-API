@@ -28,6 +28,5 @@ textstat
 transformers 
 torch 
 torchvision 
-detectron2
 inflect
 nltk
