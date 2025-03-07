@@ -9,6 +9,7 @@ app.log
 .dockerignore
 /docker/
 /chroma_db1/
+chroma_backup/
 .env
 chroma.log
 desktop.ini

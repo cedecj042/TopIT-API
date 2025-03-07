@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    command: sh -c "python -m uvicorn Main:app --host 0.0.0.0 --port 8001 --loop asyncio"
+    env_file:
+      - .env
+    ports: 
+      - 8001:8001
+    volumes:
+     - .:/app
+    depends_on:
+      - chromadb
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    restart: always
+    volumes:
+      - ./chroma_db1:/chroma_db
+    environment:
+      - CHROMA_DB_DIR=/chroma_db
+      - CHROMA_PERSIST_DIRECTORY=/chroma_db
+    ports:
+      - "8000:8000"
