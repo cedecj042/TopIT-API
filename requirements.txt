@@ -1,32 +1,38 @@
+# Core Framework
 fastapi
-uvicorn
-pydantic
+uvicorn[standard]  # Includes WebSockets and other useful extras
+
+# Environment & Utilities
+python-dotenv
+nest-asyncio
 requests
 Pillow
-python-dotenv
-opencv-python
-easyocr
-nest-asyncio
-PyMuPDF
 python-multipart
+
+# Computer Vision
+opencv-python-headless  # Lighter than opencv-python (no GUI dependencies)
+easyocr
+PyMuPDF
+layoutparser
+
+# Machine Learning & NLP
 torch
-langchain
-langchain_chroma
-langchain_core
-langchain_huggingface
-langchain_openai
+torchvision
+transformers
 huggingface_hub
 sentence-transformers
-langchain-openai
-chromadb
-llama-index
-langchain-community
-llama_parse
-layoutparser
-scikit-learn==1.6.0
-textstat
-transformers 
-torch 
-torchvision 
+scikit-learn  # No need to specify 1.6.0 (latest stable version will be installed)
 inflect
 nltk
+textstat
+
+# LangChain & LlamaIndex
+langchain
+langchain-openai  # Remove redundant "langchain_openai"
+langchain-chroma  # Correct package format for consistency
+langchain-core
+langchain-huggingface
+langchain-community
+chromadb
+llama-index
+llama-parse

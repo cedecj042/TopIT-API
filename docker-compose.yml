@@ -3,15 +3,18 @@ version: "3.8"
 services:
   app:
     build: .
-    command: sh -c "python -m uvicorn Main:app --host 0.0.0.0 --port 8001 --loop asyncio"
+    command: sh -c "uvicorn Main:app --host 0.0.0.0 --port 8001 --loop asyncio"
     env_file:
       - .env
     ports: 
-      - 8001:8001
+      - "8001:8001"
+    networks:
+      - topit
     volumes:
-     - .:/app
+      - .:/app
     depends_on:
-      - chromadb
+      chromadb:
+        condition: service_healthy
 
   chromadb:
     image: chromadb/chroma:latest
@@ -19,8 +22,23 @@ services:
     restart: always
     volumes:
       - ./chroma_db1:/chroma_db
+    networks:
+      - topit
     environment:
       - CHROMA_DB_DIR=/chroma_db
       - CHROMA_PERSIST_DIRECTORY=/chroma_db
+      - CHROMA_SERVER_HTTP_PORT=8000
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+      timeout: 5s
+
+networks:
+    topit:
+        driver: bridge
+
+        
