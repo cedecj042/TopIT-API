@@ -425,3 +425,23 @@ Very hard
         Questions should present complex scenarios where students must evaluate options, recommend solutions, and provide rationale. 
         Question should have a minimum of 4 sentences.  All scenarios must include specific measurement criteria, metrics, or standards for objective evaluation.
 """
+IDENTIFICATION_SAMPLE_QA = """
+{ 'question': 'Identify an example of a non-functional requirement.',
+  'answer': ['Performance', 'Scalability']
+}
+{ 'question': 'What is a key aspect of architecture verification?',
+  'answer': ['Approval process']
+}
+{ 'question': 'What is the main purpose of the context diagram?',
+  'answer': ['System boundary']
+}
+{ 'question': 'What is the output of architecture design?',
+  'answer': ['Detailed architecture']
+}
+{ 'question': 'Identify a method of expressing architecture design.',
+  'answer': ['Context model', 'Component diagram']
+}
+{ 'question': 'What is a key feature of the client-server model?',
+  'answer': ['Service requests']
+}
+"""

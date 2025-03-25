@@ -7,7 +7,7 @@
 # from langchain_chroma import Chroma
 # from langchain_openai import ChatOpenAI
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain_core.retrievers import BaseRetriever
 # from langchain.chains import RetrievalQA
@@ -111,10 +111,11 @@ async def ModelQuerywithRAG(input, module_uid):
 
         Query: {input}
         """
-        
+
         prompt_template = PromptTemplate(template=template)
         
         prompt_text = prompt_template.invoke({"context": context, "input": input})
+        
         response = LLM.invoke(prompt_text)
         return response.content
 
@@ -218,10 +219,10 @@ async def createQuestionPerDifficulty(data):
                 logging.info(f"Attempt {iteration}: Generating up to {DEFAULT_QUESTION_SIZE} questions for difficulty: {difficulty_name}")
                 module_uid = module_uids[module_index]
                 module_index = (module_index + 1) % len(module_uids)
-
+                print(f"module_uid : {module_uid}")
                 # Build instructions for generating questions
                 filtered_blooms_descriptions = build_blooms_prompt(difficulty["level"], BLOOMS_MAPPING)
-                
+                  
                 instructions = f"""   
                     Generate {DEFAULT_QUESTION_SIZE} questions for the Cognitive Level {difficulty['level']}.
                     Each question must follow the cognitive level’s difficulty guidelines and be stored in a JSON structure.
@@ -331,9 +332,12 @@ async def createQuestionPerDifficulty(data):
                     logging.warning(warning)
 
                 logging.info(f"Questions remaining for {difficulty_name}: {difficulty['remaining']}")
-
+                
         logging.info(f"Done generating questions for all difficulties.")
-        return result_questions
+        
+        print(type(result_questions))
+        updated_result_questions = updateIdentificationAnswers(result_questions)
+        return updated_result_questions
 
     except Exception as e:
         raise Exception(f"Exception error: {e}")
@@ -380,7 +384,110 @@ def clean_and_parse_json(response, difficulty_name, iteration):
         )
     return None  # Return None if parsing fails
 
+def updateIdentificationAnswers(result_questions):
+    
+    remaining_questions_set = set()
+    remaining_questions = ""
+        
+    #get all identification questions
+    for question in result_questions["questions"]:
+        if question['questionType'] == "Identification":
+            remaining_questions_set.add(question['question'])
+            remaining_questions = remaining_questions + "\n"+ question['question']
 
+    # initializing remaining questions
+    remaining_questions_count = len(remaining_questions_set)
+    logging.info("updating identification answers")
+    while remaining_questions_count > 0:
+        try: 
+          #instructions for RAG
+          instructions = f"""
+                      Answer each question with all possible correct answers: 
+
+                      {remaining_questions}
+
+
+                      It should be stored in a JSON format like this and don 't put any text beside this:
+                      The **output must be in this exact JSON format stored in an array []**:
+
+                      ```json
+                          {{
+                          {IDENTIFICATION_SAMPLE_QA}
+                          }}
+                      """
+          
+          response = RAGForIdentificationQuestions(instructions, 1)
+
+          #cleaning response
+          cleaned_response = response.strip("`")  # Removes backticks if present
+          if cleaned_response.startswith("json"):
+              cleaned_response = cleaned_response[len("json"):].strip()
+
+          IDENTIFICATION_ANSWERS = json.loads(cleaned_response)
+          
+          remaining_questions_set.clear() #reset remaining questions set
+
+          #updating identification answers and checking for remaining questions
+          for answer in IDENTIFICATION_ANSWERS:
+              exist = False
+              for result in result_questions['questions']:
+                  if answer['question'] == result['question']:
+                      exist = True
+                      result['answer'] = list(set(result['answer'] + answer['answer']))
+                      break
+              if not exist: 
+                  remaining_questions_set.add(result['question'])
+
+          
+          remaining_questions = ""   #reset remaining questions
+          remaining_questions = "\n".join(remaining_questions_set) 
+          remaining_questions_count = len(remaining_questions_set) #update remaining_questions_count
+    
+        except json.JSONDecodeError as e:
+          logging.error(f"Error: {e}. Response: {cleaned_response}")
+          print(f"Error processing the response: {e}")
+          continue
+      
+    return result_questions
+    
+def RAGForIdentificationQuestions(input, course_id):
+    stored_docs = CONTENT_DOCUMENT.get()
+
+    # Count documents inside course_id
+    filtered_docs = [
+        metadata for metadata in stored_docs["metadatas"] if metadata.get("course_id") == course_id
+    ]
+    Number_of_docs = len(filtered_docs)
+    
+    retriever = CONTENT_DOCUMENT.as_retriever(
+        search_kwargs={
+            "filter": {"ids": {"$eq": course_id}},
+            "k": Number_of_docs,  
+        }
+    )
+
+    # Define prompt template
+    template = """
+    You are Information Technology College Teacher that is handling Reviewer for Information Technology certification reviewers.
+    You are tasked to answer each of the question with all possible correct answers for each question.
+    Each answer should be concise, limited to a maximum of 3 words.
+
+    <context>
+    {context}
+    </context>
+
+    Query: {input}
+    """
+
+    # Create a prompt template
+    prompt_template = ChatPromptTemplate.from_template(template)
+    # Create a chain
+    doc_chain = create_stuff_documents_chain(LLM, prompt_template)
+    chain = create_retrieval_chain(retriever, doc_chain)
+
+    # User query
+    response = chain.invoke({"input": input})
+    return response["answer"]
 
 async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     all_questions = []
@@ -426,3 +533,4 @@ async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest])
     except requests.exceptions.RequestException as e:
         logging.error(f"Error while sending data to Laravel: {e}")
         return "Failed to send data to Laravel due to a connection error."
+   

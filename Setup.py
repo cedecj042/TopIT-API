@@ -46,7 +46,7 @@ API_KEY_LLAMAPARSE = os.getenv("LLAMA_CLOUD_API_KEY")
 repo_id = "lepuer/layout_parser"
 config_path = hf_hub_download(repo_id=repo_id, filename="config.yaml")
 model_path = hf_hub_download(repo_id=repo_id, filename="model_final.pth")
-chroma_client = HttpClient(host="chromadb", port=8000)
+# chroma_client = HttpClient(host="chromadb", port=8000)
 
 # Initialize Detectron2LayoutModel using downloaded files
 DETECTRON_MODEL = lp.Detectron2LayoutModel(
@@ -93,7 +93,7 @@ SBERT = HuggingFaceEmbeddings(
 SCALER = joblib.load("RandomForest/updated_scaler.pkl")
 TFIDF_VECTORIZER = joblib.load("RandomForest/updated_tfidf_vectorizer.pkl")
 RANDOM_FOREST_MODEL = joblib.load("RandomForest/updated_trained_model.pkl")
-client = chromadb.PersistentClient(path="/chroma_db")
+client = chromadb.PersistentClient(path="chroma_backup/chroma_db1")
 print(client.list_collections())
 
 CONTENT_DOCUMENT = Chroma(
