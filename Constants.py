@@ -85,45 +85,38 @@ BLOOMS_MAPPING = {
         "instructions": """
 
         **General Instructions:**
-        * Create questions that test basic recall of factual information.
         * Focus on direct, precise questions that require selecting the correct answer from a list, identifying a specific term, concept, or fact, or completing a sentence.
         * Avoid subjective or opinion-based questions. All questions must be factual and objective.
         * PROVIDE ALL POSSIBLE ANSWERS FOR EACH IDENTIFICATION QUESTION.
-        * Ensure each question is clear, precise, and unambiguous. Avoid complex or confusing phrasing.
+        * Generate identification questions that require a specific term as the answer. Use prompts like 
+            - "What is the term for...", 
+            - "What do you call...", 
+            - "What is the name of..." 
+            - "Enumerate one..."
+            - "List one..."
+            - "Identify one..."
+            - "Name one..."
+            - "Recall one..
+        to ensure the question leads to an objective, factual response.
+        * If using enumerate, identify, list, name, recall. Indicate all answers.
         * Limit each question to 5-10 words.
         * The answer should not be found in the question.
                 
         """,
         "question_types": """
             **1. Identification Questions:**
-             **Keywords:** Use keywords such as "List," "Name," "Recall," "Identify," or "Enumerate."
-            * **Answer Format:** The "answer" field should be an array containing all possible answers. Include both the full answer and its common abbreviation (if applicable) within each array element.
+            * **Keywords:** Use keywords such as "List," "Name," "Recall," "Identify,", "Enumerate","The term for".
+            * **Answer Format:** The "answer" field should be an array containing all possible answers. Include both the full expanded answer and its short form of answer.
             * **Answer Length:** Each answer should be concise, limited to a maximum of 3 words.
-            * **Code-Based Questions:** Include fill-in-the-blank or output-based questions for code snippets where relevant.
-            * **Complete Answers:** If a question requires all possible answers for correctness, include all answers in the answer array and set "requires_all_answer" to true. Otherwise set it to false.
-            * **Required Keys:** "question", "questionType", "answer", "requires_all_answer"
+            * **Required Keys:** "question", "questionType", "answer"
                         
             Keys:
-            {"question","questionType","requires_all_answer","answer",}
+            {"question","questionType","answer",}
             Example:
             {
                 "question": "Identify the primary characteristics of NoSQL databases.",
                 "questionType": "Identification",
                 "answer": ["Non-relational", "Distributed","Scalable"]
-                "requires_all_answer": false
-            }
-            **2. Multiple Choice - Single**
-            * Each question must have only one correct answer.
-            * Frame questions to require evaluating relationships or categorizing elements within the provided scenario.
-            * Keywords: "Recognize", "Retrieve", "Memorize", "Outline", "State",
-            * **Required Keys:** "question", "questionType", "answer", "choices"
-            * **QuestionType:** The questionType key must always be "Multiple Choice - Single"
-            Example: 
-            {
-                "question": "Define the software development cycle.",
-                "questionType": "Multiple Choice - Single",
-                "answer": A structured process for planning, creating, testing, and deploying software.",
-                "choices": ["A structured process for planning, creating, testing, and deploying software.","The process of writing code in a programming language.","The act of only debugging and testing software.","The process of only designing the user interface."]
             }
             
         """,

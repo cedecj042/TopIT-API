@@ -126,8 +126,6 @@ def check_answers(result, questionType):
         if questionType == "Identification":
             if not isinstance(result["answer"], list):
                 raise ValueError(f"Identification answer must be a list, got {type(result['answer'])}.")
-            if "requires_all_answer" not in result:
-                raise ValueError("Key 'requires_all_answer' is missing in Identification question.")
             for answer in result["answer"]:
                 if len(answer.split()) >= 4:
                     raise ValueError(f"Answer '{answer}' has 4 or more words. Answers must be less than 3 words.")

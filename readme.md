@@ -38,14 +38,24 @@ Create a `.env` file in the project root and configure your environment variable
 cp .env.example .env
 nano .env  # Edit as needed
 ```
+### Step 4: Create docker network (If already exist, proceed)
 
-### Step 4: Build and Start the Containers
+To check if you have created a network named topit,
+```
+docker network ls
+``
+Before building and starting the container, make sure you have the same existing network in docker for laravel. If not, then create
+```sh
+docker network create topit
+```sh
+
+### Step 5: Build and Start the Containers
 
 ```sh
-docker-compose up -d --build
+docker compose up -d
 ```
 
-### Step 5: Verify Services
+### Step 6: Verify Services
 
 Ensure all containers are running:
 
@@ -65,14 +75,18 @@ Or open the Swagger UI in your browser:
 http://localhost:8001/docs
 ```
 
-### Step 6
 
 ## Additional Commands
 
 - **Rebuild the containers** (after making changes to `Dockerfile` or dependencies):
 
     ```sh
-    docker-compose up -d --build
+    docker compose down -v
+    ```
+    and run
+
+    ```sh
+    docker compose up -d
     ```
 
 - **Stopping the Containers**
