@@ -25,7 +25,7 @@ from huggingface_hub import hf_hub_download
 import torch
 from PIL import Image
 import requests
-
+import sklearn
 
 from dotenv import load_dotenv
 load_dotenv() 
@@ -35,7 +35,9 @@ nltk.download('stopwords',quiet=True)
 nltk.download('punkt',quiet=True)
 nltk.download('punkt_tab',quiet=True)
 nltk.download('wordnet',quiet=True)
-
+nltk.download('words',quiet=True)
+nltk.download('averaged_perceptron_tagger',quiet=True)
+nltk.download('averaged_perceptron_tagger_eng',quiet=True)
 
 API_KEY = os.getenv("OPENAI_API_KEY")
 LARAVEL_IP = os.getenv('LARAVEL_IP_ADDRESS')
@@ -90,11 +92,12 @@ SBERT = HuggingFaceEmbeddings(
 )
 
 # question difficulty estimation model 
-SCALER = joblib.load("RandomForest/updated_scaler.pkl")
-TFIDF_VECTORIZER = joblib.load("RandomForest/updated_tfidf_vectorizer.pkl")
-RANDOM_FOREST_MODEL = joblib.load("RandomForest/updated_trained_model.pkl")
+SCALER = joblib.load("BestModel/scaler.pkl")
+TFIDF_VECTORIZER = joblib.load("BestModel/tfidf_vectorizer.pkl")
+RANDOM_FOREST_MODEL = joblib.load("BestModel/trained_model.pkl")
+KEYWORDS = joblib.load("BestModel/keywords.pkl")
+
 client = chromadb.PersistentClient(path="chroma_backup/chroma_db1")
-print(client.list_collections())
 
 CONTENT_DOCUMENT = Chroma(
     # client=chroma_client,
@@ -110,7 +113,7 @@ QUESTION_DOCUMENT = Chroma(
     persist_directory=CHROMA_PERSIST_DIR
 )
 
-# Load the llm 
+# Load the llm  
 LLM = ChatOpenAI(model_name="gpt-4o-mini",api_key=API_KEY, temperature=0.5, top_p=0.9)
 
 #EasyOCR

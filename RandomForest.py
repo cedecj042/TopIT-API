@@ -5,7 +5,7 @@ import re, uuid, requests
 from pydantic import BaseModel
 from datetime import datetime
 import numpy as np
-
+import random
 
 # for question difficulty estimation
 import textstat
@@ -25,6 +25,8 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import sent_tokenize, word_tokenize
 from textstat import flesch_kincaid_grade, syllable_count
+from nltk import pos_tag
+import string
 import torch
 
 
@@ -196,13 +198,83 @@ def preprocess_text(text):
     
     return preprocessed_tokens, combined_text
 
+def preprocess_text_with_code(text):
+    """
+    Preprocess text with embedded code snippets and preserve domain-specific terms:
+    - Preserves ALLCAPS (e.g., API)
+    - Preserves compound terms like CI/CD, client-server
+    - Preserves MixedCase terms like DevOps, MicroService
+    - Returns tokenized list and combined cleaned string
+    """
+    # Step 1: Extract code snippets
+    code_snippets = re.findall(r'`.*?`', text)
+
+    # Step 2: Remove code from main text for processing
+    text_without_code = re.sub(r'`.*?`', '', text)
+
+    # Step 3: Identify preserved terms
+    preserved_terms = re.findall(
+        r'\b(?:[A-Z]{2,}[0-9]*|[A-Z]{2,}/[A-Z0-9]{2,}|[a-zA-Z]{3,}[-/][a-zA-Z]{3,}|'  # API, CI/CD, client-server
+        r'[A-Z][a-z]+(?:[A-Z][a-z]+)+)\b',                                             # DevOps, MicroService
+        text_without_code
+    )
+    # Step 4: Clean unwanted punctuation (keep - and /)
+    text_cleaned = re.sub(r'[^\w\s/-]', '', text_without_code)
+
+    # Step 5: Tokenize
+    tokens = word_tokenize(text_cleaned)
+
+    # Step 6: Process tokens
+    processed_tokens = []
+    for token in tokens:
+        if token in preserved_terms:
+            processed_tokens.append(token)  # Keep preserved terms as-is
+        else:
+            token_lower = token.lower()
+            lemmatized = lemmatizer.lemmatize(token_lower)
+            if token_lower not in stop_words and lemmatized.isalpha() and len(lemmatized) > 1:
+                processed_tokens.append(lemmatized)
+
+    # Step 7: Combine tokens + code
+    preprocessed_text = " ".join(processed_tokens)
+    code_text = " ".join(code_snippets)
+    combined_text = f"{preprocessed_text} {code_text}".strip()
+
+    return processed_tokens, combined_text
+
+def stopword_ratio(tokenized_question):
+    return sum(1 for word in tokenized_question if word.lower() in stop_words) / len(tokenized_question) if tokenized_question else 0
+
+def noun_verb_ratio(preprocessed_question):
+    tokens = word_tokenize(preprocessed_question)
+    pos_tags = pos_tag(tokens)
+    nouns = sum(1 for _, tag in pos_tags if tag.startswith("NN"))
+    verbs = sum(1 for _, tag in pos_tags if tag.startswith("VB"))
+    return nouns / verbs if verbs > 0 else 0
+
+def extract_keyword_features_for_all_categories(text):
+    features = {}
+    tokens = text.lower().split()
+    weight = 3.0  # adjust as needed
+
+    for category, keywords in KEYWORDS.items():
+        keyword_count = sum(1 for token in tokens if token in keywords)
+        keyword_frequency = keyword_count / len(tokens) if tokens else 0
+        features[f'keyword_count_{category}'] = keyword_count * weight
+        features[f'keyword_frequency_{category}'] = keyword_frequency * weight
+
+    features['total_blooms_keyword_count'] = sum(
+        features[f'keyword_count_{cat}'] for cat in KEYWORDS
+    )
+
+    return features
 
 def extract_features(question):
     """
     Extract features from a row using preprocessed and tokenized columns.
     """
     # Retrieve preprocessed and tokenized text
-    tokenized_question, preprocessed_question = preprocess_text(question)
+    tokenized_question, preprocessed_question = preprocess_text_with_code(question)
 
     # --- Initialize feature dictionary ---
     features = {}
@@ -210,24 +282,22 @@ def extract_features(question):
     # --- Textual Features ---
     tfidf_vector = TFIDF_VECTORIZER.transform([preprocessed_question]).toarray()[0]  # Convert to 1D array
     features.update({f"tfidf_{i}": val for i, val in enumerate(tfidf_vector)})
-
+    features.update(extract_keyword_features_for_all_categories(question))
+    
     # --- Text Length Features ---
-    features["word_count"] = len(tokenized_question)
-    features["sentence_count"] = len(sent_tokenize(question))  # Use original text for sentence count
-    features["avg_word_length"] = (
-        np.mean([len(word) for word in tokenized_question]) if tokenized_question else 0
-    )
+    features["avg_word_length"] = (np.mean([len(word) for word in tokenized_question]) if tokenized_question else 0)
     features["readability"] = flesch_kincaid_grade(question) if question.strip() else 0
 
     # --- Lexical Complexity ---
     unique_words = len(set(tokenized_question))
     features["unique_word_count"] = unique_words
-    features["vocabulary_diversity"] = (
-        unique_words / len(tokenized_question) if len(tokenized_question) > 0 else 0
-    )
-    features["complex_word_count"] = sum(
-        syllable_count(word) > 3 for word in tokenized_question
-    )
+    features["vocabulary_diversity"] = (unique_words / len(tokenized_question) if len(tokenized_question) > 0 else 0)
+    features["complex_word_count"] = sum(syllable_count(word) > 3 for word in tokenized_question)
+
+    # --- New Advanced Linguistic Features ---
+    features['stopword_ratio'] = stopword_ratio(question)
+    features['noun_verb_ratio'] = noun_verb_ratio(question)
+
 
     return features
 
@@ -252,6 +322,25 @@ def process_and_predict(question):
 
     return top_prediction
 
+import warnings
+from sklearn.exceptions import DataConversionWarning
+
+def process_and_predict(question):
+    # Extract features
+    features = extract_features(question)
+    feature_df = pd.DataFrame([features])
+
+    # Normalize using fitted scaler
+    scaled_array = SCALER.transform(feature_df)
+    pred_normalized = pd.DataFrame(scaled_array, columns=feature_df.columns)
+
+    # Predict class probabilities
+    prediction_probs = RANDOM_FOREST_MODEL.predict_proba(pred_normalized.values)[0]
+    top_prediction_index = np.argmax(prediction_probs)
+
+    # Map to label
+    top_prediction = match_difficulty(top_prediction_index)
+    return top_prediction
 
 def match_difficulty(prediction):
     difficulty_mapping = {
@@ -266,15 +355,16 @@ def match_difficulty(prediction):
 
 def get_discrimination(type):
     if type == "Very Easy":
-        return 0.2
+        return round(random.uniform(0.1, 0.4), 2)
     elif type == "Easy":
-        return 0.4
+        return round(random.uniform(0.4, 0.8), 2)
     elif type == "Average":
-        return 0.6
+        return round(random.uniform(0.8, 1.2), 2)
     elif type == "Hard":
-        return 0.8
+        return round(random.uniform(1.2, 1.6), 2)
     else:
-        return 1.0
+        return round(random.uniform(1.6, 2.0), 2)
+
 
 
 def checkExactMatch(query_text, similarity_threshold=0.90):

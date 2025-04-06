@@ -211,13 +211,12 @@ async def createQuestionPerDifficulty(data):
                 continue
             iteration = 0
             while difficulty["remaining"] > 0 and iteration < max_attempts_per_difficulty:
-                DEFAULT_QUESTION_SIZE = max(10,difficulty["remaining"])
+                DEFAULT_QUESTION_SIZE = max(15,difficulty["remaining"])
                 
                 iteration += 1
                 logging.info(f"Attempt {iteration}: Generating up to {DEFAULT_QUESTION_SIZE} questions for difficulty: {difficulty_name}")
                 module_uid = module_uids[module_index]
                 module_index = (module_index + 1) % len(module_uids)
-                print(f"module_uid : {module_uid}")
                 # Build instructions for generating questions
                 filtered_blooms_descriptions = build_blooms_prompt(difficulty["level"], BLOOMS_MAPPING)
                   
@@ -228,7 +227,9 @@ async def createQuestionPerDifficulty(data):
                     Instructions:
                     {filtered_blooms_descriptions}
 
-                    Rule: Ensure questions are stored in JSON format like this and don't add any text after:
+                    Rule: 
+                        Do not wrap answers or choices in single quotes. Use plain text inside double quotes only.
+                        Ensure questions are stored in JSON format like this and don't add any text after:
                     {{
                         "course_id": "{data.course_id}",
                         "course_title": "{data.course_title}",
@@ -245,11 +246,7 @@ async def createQuestionPerDifficulty(data):
                         logging.error(f"Empty response received for difficulty: {difficulty_name}, iteration {iteration}")
                         continue  # Skip processing if response is empty
 
-                    # Remove markdown code block markers (```json and ```)
-                    cleaned_response = response.strip("`")  # Removes backticks if present
-                    if cleaned_response.startswith("json"):
-                        cleaned_response = cleaned_response[len("json"):].strip()
-
+                    cleaned_response = clean_response_json(response)
                     result = json.loads(cleaned_response)
                 except json.JSONDecodeError as e:
                     logging.error(f"JSON decoding error for difficulty: {difficulty_name}, iteration {iteration}: {e}")
@@ -333,7 +330,6 @@ async def createQuestionPerDifficulty(data):
                 
         logging.info(f"Done generating questions for all difficulties.")
         
-        print(type(result_questions))
         updated_result_questions = updateIdentificationAnswers(result_questions)
         return updated_result_questions
 
@@ -356,113 +352,70 @@ def build_blooms_prompt(needed, blooms_mapping):
 
     return prompt
 
-def clean_and_parse_json(response, difficulty_name, iteration):
-    try:
-        # Remove the word "json" (case-insensitive) and strip whitespace
-        cleaned_response = response.replace("json", "").strip()
-        result = json.loads(cleaned_response)
-        return result
-    except json.JSONDecodeError as e:
-        # Log detailed error information
-        logging.error(
-            f"JSON decoding error for difficulty: {difficulty_name}, iteration {iteration}. "
-            f"Error: {e}. Response: {cleaned_response}"
-        )
-    except ValueError as e:
-        # Handle other value-related errors
-        logging.error(
-            f"Value error for difficulty: {difficulty_name}, iteration {iteration}. "
-            f"Error: {e}. Response: {cleaned_response}"
-        )
-    except Exception as e:
-        # Catch any other unexpected errors
-        logging.error(
-            f"Unexpected error for difficulty: {difficulty_name}, iteration {iteration}. "
-            f"Error: {e}. Response: {cleaned_response}"
-        )
-    return None  # Return None if parsing fails
-
 def updateIdentificationAnswers(result_questions):
-    
     remaining_questions_set = set()
     remaining_questions = ""
-        
-    #get all identification questions
+
+    # Get all identification questions
     for question in result_questions["questions"]:
         if question['questionType'] == "Identification":
             remaining_questions_set.add(question['question'])
-            remaining_questions = remaining_questions + "\n"+ question['question']
+            remaining_questions += "\n" + question['question']
 
-    # initializing remaining questions
     remaining_questions_count = len(remaining_questions_set)
-    logging.info("updating identification answers")
+
     while remaining_questions_count > 0:
-        try: 
-          #instructions for RAG
-          instructions = f"""
-                      Answer each question with all possible correct answers: 
+        try:
+            instructions = f"""
+            Answer each question with all possible correct answers:
 
-                      {remaining_questions}
+            {remaining_questions}
 
+            It should be stored in a JSON format like this and don't put any text beside this:
+            The **output must be in this exact JSON format stored in an array []**:
+            
+            {IDENTIFICATION_SAMPLE_QA}
+            """
+            response = RAGForIdentificationQuestions(instructions, 1)
 
-                      It should be stored in a JSON format like this and don 't put any text beside this:
-                      The **output must be in this exact JSON format stored in an array []**:
+            # Clean and parse response
+            cleaned_response = clean_response_json(response)
+            IDENTIFICATION_ANSWERS = json.loads(cleaned_response)
 
-                      ```json
-                          {{
-                          {IDENTIFICATION_SAMPLE_QA}
-                          }}
-                      """
-          
-          response = RAGForIdentificationQuestions(instructions, 1)
+            # Reset for next loop
+            remaining_questions_set.clear()
 
-          #cleaning response
-          cleaned_response = response.strip("`")  # Removes backticks if present
-          if cleaned_response.startswith("json"):
-              cleaned_response = cleaned_response[len("json"):].strip()
+            # Update answers
+            for answer in IDENTIFICATION_ANSWERS:
+                for result in result_questions['questions']:
+                    if answer['question'] == result['question']:
+                        # Coerce to list safely
+                        existing = result['answer'] if isinstance(result['answer'], list) else [result['answer']]
+                        incoming = answer['answer'] if isinstance(answer['answer'], list) else [answer['answer']]
+                        result['answer'] = list(set(existing + incoming))
 
-          IDENTIFICATION_ANSWERS = json.loads(cleaned_response)
-          
-          remaining_questions_set.clear() #reset remaining questions set
+            # Rebuild remaining_questions_set based on unanswered questions
+            remaining_questions_set.clear()
+            for result in result_questions['questions']:
+                if result['questionType'] == "Identification":
+                    if not result['answer'] or len(result['answer']) == 0:
+                        remaining_questions_set.add(result['question'])
 
-          #updating identification answers and checking for remaining questions
-          for answer in IDENTIFICATION_ANSWERS:
-              exist = False
-              for result in result_questions['questions']:
-                  if answer['question'] == result['question']:
-                      exist = True
-                      result['answer'] = list(set(result['answer'] + answer['answer']))
-                      break
-              if not exist: 
-                  remaining_questions_set.add(result['question'])
+            # Prepare remaining_questions string and count
+            remaining_questions = "\n".join(remaining_questions_set)
+            remaining_questions_count = len(remaining_questions_set)
 
-          
-          remaining_questions = ""   #reset remaining questions
-          remaining_questions = "\n".join(remaining_questions_set) 
-          remaining_questions_count = len(remaining_questions_set) #update remaining_questions_count
-    
         except json.JSONDecodeError as e:
-          logging.error(f"Error: {e}. Response: {cleaned_response}")
-          print(f"Error processing the response: {e}")
-          continue
-      
+            logging.error(f"JSON decode error: {e}. Response: {cleaned_response}")
+            continue
+        except Exception as e:
+            logging.error(f"Unexpected error in updateIdentificationAnswers: {e}")
+            continue
+
     return result_questions
+
     
 def RAGForIdentificationQuestions(input, course_id):
-    stored_docs = CONTENT_DOCUMENT.get()
-
-    # Count documents inside course_id
-    filtered_docs = [
-        metadata for metadata in stored_docs["metadatas"] if metadata.get("course_id") == course_id
-    ]
-    Number_of_docs = len(filtered_docs)
-    
-    retriever = CONTENT_DOCUMENT.as_retriever(
-        search_kwargs={
-            "filter": {"ids": {"$eq": course_id}},
-            "k": Number_of_docs,  
-        }
-    )
 
     # Define prompt template
     template = """
@@ -470,22 +423,15 @@ def RAGForIdentificationQuestions(input, course_id):
     You are tasked to answer each of the question with all possible correct answers for each question.
     Each answer should be concise, limited to a maximum of 3 words.
 
-    <context>
-    {context}
-    </context>
-
     Query: {input}
     """
 
-    # Create a prompt template
-    prompt_template = ChatPromptTemplate.from_template(template)
-    # Create a chain
-    doc_chain = create_stuff_documents_chain(LLM, prompt_template)
-    chain = create_retrieval_chain(retriever, doc_chain)
+    prompt_template = PromptTemplate.from_template(template)
+    prompt_text = prompt_template.format(input=input)
 
-    # User query
-    response = chain.invoke({"input": input})
-    return response["answer"]
+    response = LLM.invoke(prompt_text)
+    logging.info(f"Rag response: {response.content}")
+    return response.content
 
 async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest]):
     all_questions = []
@@ -532,3 +478,83 @@ async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest])
         logging.error(f"Error while sending data to Laravel: {e}")
         return "Failed to send data to Laravel due to a connection error."
    
+
+def clean_response_json(response: str) -> str:
+    cleaned = response.strip()
+    
+    # Remove JSON code fence if present
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[len("```json"):].strip()
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[len("```"):].strip()
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].strip()
+    
+    # Step A: Extract and temporarily replace code blocks with placeholders
+    code_blocks = {}
+    code_block_pattern = r'(```[a-zA-Z]*\n[\s\S]*?\n```)'
+    
+    def _extract_code_blocks(text):
+        if '```' not in text:
+            return text
+            
+        def _replacer(match):
+            placeholder = f"[[CODE_BLOCK_{len(code_blocks)}]]"
+            code_blocks[placeholder] = match.group(1)
+            return placeholder
+            
+        return re.sub(code_block_pattern, _replacer, text)
+    
+    # First handle code blocks in the entire JSON
+    cleaned = _extract_code_blocks(cleaned)
+    
+    # Step B: Clean JSON structure issues
+    # Fix quote styles
+    cleaned = cleaned.replace(""", '"').replace(""", '"')
+    cleaned = cleaned.replace("'", "'").replace("'", "'")
+    
+    # Convert single-quoted keys to double-quoted
+    cleaned = re.sub(r"(?<=\{|,)\s*'([^']+)'\s*:", r'"\1":', cleaned)
+    
+    # Convert single-quoted values to double-quoted
+    cleaned = re.sub(r':\s*\'([^\']*?)\'(?=,|\n|\})', r': "\1"', cleaned)
+    
+    # Fix single-quoted arrays
+    cleaned = re.sub(
+        r"\[\s*'([^']*?)'\s*(,\s*'[^']*?'\s*)*\]",
+        lambda match: '[' + ', '.join('"' + item.strip().strip("'") + '"' for item in match.group(0)[1:-1].split(',') if item.strip()) + ']',
+        cleaned
+    )
+    
+    # Remove trailing commas before closing brackets
+    cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
+    
+    # Step C: Handle escaping in string values
+    def _escape_string_content(match):
+        content = match.group(1)
+        # Don't double-escape already escaped sequences
+        content = content.replace('\\n', '{{NEWLINE}}')
+        content = content.replace('\\t', '{{TAB}}')
+        content = content.replace('\\r', '{{RETURN}}')
+        # Escape actual newlines and tabs
+        content = content.replace('\n', '\\n')
+        content = content.replace('\t', '\\t') 
+        content = content.replace('\r', '\\r')
+        # Restore previously escaped sequences
+        content = content.replace('{{NEWLINE}}', '\\n')
+        content = content.replace('{{TAB}}', '\\t')
+        content = content.replace('{{RETURN}}', '\\r')
+        return '"' + content + '"'
+    
+    # Process all string values
+    cleaned = re.sub(r'"([^"]*?)"', _escape_string_content, cleaned)
+    
+    # Step D: Restore code blocks with proper escaping
+    for placeholder, code in code_blocks.items():
+        # Escape backslashes and quotes in code blocks before restoring
+        escaped_code = code.replace('\\', '\\\\').replace('"', '\\"')
+        # Replace actual newlines with escaped newlines
+        escaped_code = escaped_code.replace('\n', '\\n')
+        cleaned = cleaned.replace(placeholder, escaped_code)
+    
+    return cleaned

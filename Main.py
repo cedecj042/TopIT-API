@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from Pdf_processing import actual_pdf_processing_function, process_content
 from Rag import *
 from Setup import *
-from Models import CreateQuestionsRequest, QueryRequest, ModuleModel, CourseModel
+from Models import CreateQuestionsRequest, QueryRequest, ModuleModel, CourseModel, QuestionDataRequest
 from Utils import *
 
 import nest_asyncio
@@ -321,6 +321,68 @@ async def delete_question(question_uid: str):
         raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+    
+@app.post('/bulk_delete_questions/')
+async def bulk_delete_questions(question_uids: List[str]):
+    try:
+        # Retrieve all documents associated with the question_uids
+        question_documents = QUESTION_DOCUMENT._collection.get(
+            where={"question_uid": {"$in": question_uids}}  # Query with integer course_id
+        )
+        
+        # Check if any documents are found for the question_uids
+        document_ids = question_documents.get("ids", [])
+
+        # If no documents are found, raise a 404 error
+        if not document_ids:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No questions found for the provided UIDs.",
+            )
+
+        # Delete all documents related to the question_uids
+        QUESTION_DOCUMENT._collection.delete(ids=document_ids)
+
+        return {
+            "message": f"Questions with UIDs {question_uids} deleted successfully."
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+
+    
+@app.put('/update_question/{question_uid}')
+async def update_quesiton(question_uid:str, question:QuestionDataRequest):
+    try:
+        result = QUESTION_DOCUMENT._collection.get(where={"question_uid": question_uid})
+        ids = result.get("ids", [])
+        
+        if not ids:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Question with UID {question_uid} not found."
+            )
+
+        # Update the document in ChromaDB
+        QUESTION_DOCUMENT._collection.update(
+            ids=ids,
+            texts=[question.question],
+            metadatas=[{
+                "question_uid": question.question_uid,
+                "course_id": question.course_id,
+                "difficulty": question.difficulty_type,
+                "type": question.question_type,
+                "difficulty_value": question.difficulty_value,
+                "discrimination_index": question.discrimination_index
+            }]
+        )
+        return {"message": f"Question with UID {question_uid} updated successfully."}
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+  
 
 @app.post("/reset_collection/")
 async def reset_collection():
