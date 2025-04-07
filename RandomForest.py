@@ -21,17 +21,19 @@ import pandas as pd
 import unicodedata
 import re
 import nltk
-from nltk.corpus import stopwords
+from nltk.corpus import stopwords, words
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import sent_tokenize, word_tokenize
 from textstat import flesch_kincaid_grade, syllable_count
 import torch
+from imblearn.pipeline import make_pipeline
 
 
+english_words = set(words.words())
 stop_words = set(stopwords.words("english"))
 lemmatizer = WordNetLemmatizer()
-words_to_keep = {"how", "what", "where", "why", "when"}
-stop_words = stop_words - words_to_keep
+# words_to_keep = {"how", "what", "where", "why", "when"}
+# stop_words = stop_words - words_to_keep
 
 
 def clean_text(text):
@@ -196,70 +198,62 @@ def preprocess_text(text):
     
     return preprocessed_tokens, combined_text
 
+def clean_text(text):
+    text = text.lower()
 
-def extract_features(question):
-    """
-    Extract features from a row using preprocessed and tokenized columns.
-    """
-    # Retrieve preprocessed and tokenized text
-    tokenized_question, preprocessed_question = preprocess_text(question)
+    #remove letters that are not from a-z
+    text = re.sub(r'[^a-z]', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # tokenize text
+    tokens = word_tokenize(text)
+    
+    #remove stop words
+    text_stop_rem = []
+    for word in tokens:
+      if word not in stop_words:
+         text_stop_rem.append(word)
 
-    # --- Initialize feature dictionary ---
-    features = {}
+    #lemmatize tokens
+    lemmatized_tokens = []
+    for token in text_stop_rem:
+       lemmatized_tokens.append(lemmatizer.lemmatize(token, pos="v"))
+    #remove non english words
+    valid_tokens = []
+    for token in lemmatized_tokens:
+        if token in english_words and len(token) > 2 :
+            valid_tokens.append(token)
+    
+    valid_tokens = set(valid_tokens)
+    
+    text = ' '.join(valid_tokens)
 
-    # --- Textual Features ---
-    tfidf_vector = TFIDF_VECTORIZER.transform([preprocessed_question]).toarray()[0]  # Convert to 1D array
-    features.update({f"tfidf_{i}": val for i, val in enumerate(tfidf_vector)})
+    return text
 
-    # --- Text Length Features ---
-    features["word_count"] = len(tokenized_question)
-    features["sentence_count"] = len(sent_tokenize(question))  # Use original text for sentence count
-    features["avg_word_length"] = (
-        np.mean([len(word) for word in tokenized_question]) if tokenized_question else 0
-    )
-    features["readability"] = flesch_kincaid_grade(question) if question.strip() else 0
-
-    # --- Lexical Complexity ---
-    unique_words = len(set(tokenized_question))
-    features["unique_word_count"] = unique_words
-    features["vocabulary_diversity"] = (
-        unique_words / len(tokenized_question) if len(tokenized_question) > 0 else 0
-    )
-    features["complex_word_count"] = sum(
-        syllable_count(word) > 3 for word in tokenized_question
-    )
-
-    return features
-
+def extract_features(X):
+     # Handle lists/arrays by converting to pandas Series
+    X_series = pd.Series(X) if not isinstance(X, pd.Series) else X
+    features = {
+        'num_words': X_series.apply(lambda x: len(x.split())),
+    }
+    return pd.DataFrame(features)
 
 def process_and_predict(question):
-
-    features = extract_features(question)
-    # --- Convert to DataFrame ---
-    feature_df = pd.DataFrame([features])
-
-    # Normalize features
-    pred_normalized = SCALER.transform(feature_df)
-
-    # Make Prediction
-    prediction_probs = RANDOM_FOREST_MODEL.predict_proba(pred_normalized)[0]
-    logging.info(f"Raw model probabilities: {prediction_probs}")
-
-    top_prediction_index = np.argmax(prediction_probs)
-
-    top_prediction = match_difficulty(top_prediction_index)  # Assuming match_difficulty is defined elsewhere
-    logging.info(f"Top predicted difficulty: {top_prediction}")
+    
+    preprocessed_text = [clean_text(question)]
+    predicted_class = RANDOM_FOREST_MODEL.predict(preprocessed_text)[0]
+    top_prediction = match_difficulty(predicted_class)  
+    logging.info(f"Top predicted difficulty: {top_prediction}")    
 
     return top_prediction
 
-
 def match_difficulty(prediction):
     difficulty_mapping = {
-        0: "Very Easy",
-        1: "Easy",
-        2: "Average",
-        3: "Hard",
-        4: "Very Hard",
+        "very_easy": "Very Easy",
+        "easy": "Easy",
+        "average": "Average",
+        "hard": "Hard",
+        "very_hard": "Very Hard",
     }
     return difficulty_mapping.get(prediction, "Unknown Difficulty") 
 

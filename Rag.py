@@ -217,7 +217,7 @@ async def createQuestionPerDifficulty(data):
                 logging.info(f"Attempt {iteration}: Generating up to {DEFAULT_QUESTION_SIZE} questions for difficulty: {difficulty_name}")
                 module_uid = module_uids[module_index]
                 module_index = (module_index + 1) % len(module_uids)
-                print(f"module_uid : {module_uid}")
+                
                 # Build instructions for generating questions
                 filtered_blooms_descriptions = build_blooms_prompt(difficulty["level"], BLOOMS_MAPPING)
                   
@@ -237,6 +237,7 @@ async def createQuestionPerDifficulty(data):
                         ]
                     }}
                 """
+                
                 response = await ModelQuerywithRAG(instructions, module_uid)
                 logging.info(f"Response for difficulty {difficulty_name}, iteration {iteration}: {response}")
 
@@ -251,6 +252,7 @@ async def createQuestionPerDifficulty(data):
                         cleaned_response = cleaned_response[len("json"):].strip()
 
                     result = json.loads(cleaned_response)
+
                 except json.JSONDecodeError as e:
                     logging.error(f"JSON decoding error for difficulty: {difficulty_name}, iteration {iteration}: {e}")
                     logging.error(f"Response content: {response}")  # Log raw response for debugging
@@ -270,7 +272,6 @@ async def createQuestionPerDifficulty(data):
                     question_text = question.get("question", "").strip()
                     question_type = question.get("questionType", "")
                     logging.info(f"Question: {question_text}")
-
                     # Skip duplicate or invalid questions
                     if question_text in existing_questions or checkExactMatch(question_text):
                         logging.info(f"Duplicate question skipped: {question_text}")
@@ -290,7 +291,7 @@ async def createQuestionPerDifficulty(data):
                         else:
                             logging.warning(f"No reliable class found for question '{question_text}'. Skipping.")
                             continue   
-
+                        
                         try:
                             question_uid = generate_custom_short_uuid(data.course_id)
                             difficulty_value = predict_difficulty_value(question_text, predicted_class)
@@ -307,6 +308,7 @@ async def createQuestionPerDifficulty(data):
                                 }]
                             )
                         except Exception as e:
+                            
                             logging.error(f"Error adding question to vector store: {e}")
                             continue
                         
@@ -334,7 +336,7 @@ async def createQuestionPerDifficulty(data):
         logging.info(f"Done generating questions for all difficulties.")
         
         print(type(result_questions))
-        updated_result_questions = updateIdentificationAnswers(result_questions)
+        updated_result_questions = updateIdentificationAnswers(result_questions, data.course_id)
         return updated_result_questions
 
     except Exception as e:
@@ -382,7 +384,7 @@ def clean_and_parse_json(response, difficulty_name, iteration):
         )
     return None  # Return None if parsing fails
 
-def updateIdentificationAnswers(result_questions):
+def updateIdentificationAnswers(result_questions, course_id):
     
     remaining_questions_set = set()
     remaining_questions = ""
@@ -414,7 +416,7 @@ def updateIdentificationAnswers(result_questions):
                           }}
                       """
           
-          response = RAGForIdentificationQuestions(instructions, 1)
+          response = RAGForIdentificationQuestions(instructions, course_id, remaining_questions_count)
 
           #cleaning response
           cleaned_response = response.strip("`")  # Removes backticks if present
@@ -448,19 +450,12 @@ def updateIdentificationAnswers(result_questions):
       
     return result_questions
     
-def RAGForIdentificationQuestions(input, course_id):
-    stored_docs = CONTENT_DOCUMENT.get()
+def RAGForIdentificationQuestions(input, course_id, number_of_docs):
 
-    # Count documents inside course_id
-    filtered_docs = [
-        metadata for metadata in stored_docs["metadatas"] if metadata.get("course_id") == course_id
-    ]
-    Number_of_docs = len(filtered_docs)
-    
     retriever = CONTENT_DOCUMENT.as_retriever(
         search_kwargs={
             "filter": {"ids": {"$eq": course_id}},
-            "k": Number_of_docs,  
+            "k": number_of_docs + 10, #add 10 more documents to be retrieved 
         }
     )
 
@@ -474,11 +469,12 @@ def RAGForIdentificationQuestions(input, course_id):
     {context}
     </context>
 
-    Query: {input}
+    Query: {input}  
     """
 
     # Create a prompt template
     prompt_template = ChatPromptTemplate.from_template(template)
+    
     # Create a chain
     doc_chain = create_stuff_documents_chain(LLM, prompt_template)
     chain = create_retrieval_chain(retriever, doc_chain)
@@ -531,4 +527,26 @@ async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest])
     except requests.exceptions.RequestException as e:
         logging.error(f"Error while sending data to Laravel: {e}")
         return "Failed to send data to Laravel due to a connection error."
-   
+    
+
+import asyncio
+
+if __name__ == "__main__":
+    data = QuestionFormat(
+        course_id=1,
+        course_title="Software Development",
+        numOfVeryEasy=10,
+        numOfEasy=10,
+        numOfAverage=10,
+        numOfHard=10,
+        numOfVeryHard=10,
+    )
+
+    async def main():
+        result = await createQuestionPerDifficulty(data)
+        print("Generated Questions:")
+        print(result)
+
+    asyncio.run(main())
+
+

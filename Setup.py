@@ -21,11 +21,12 @@ import easyocr
 import pickle
 
 from huggingface_hub import hf_hub_download
+from sklearn.preprocessing import FunctionTransformer
 
 import torch
 from PIL import Image
 import requests
-
+import pandas as pd
 
 from dotenv import load_dotenv
 load_dotenv() 
@@ -35,6 +36,7 @@ nltk.download('stopwords',quiet=True)
 nltk.download('punkt',quiet=True)
 nltk.download('punkt_tab',quiet=True)
 nltk.download('wordnet',quiet=True)
+nltk.download('words', quiet=True)
 
 
 API_KEY = os.getenv("OPENAI_API_KEY")
@@ -89,10 +91,6 @@ SBERT = HuggingFaceEmbeddings(
     encode_kwargs=ENCODE_KWARGS
 )
 
-# question difficulty estimation model 
-SCALER = joblib.load("RandomForest/updated_scaler.pkl")
-TFIDF_VECTORIZER = joblib.load("RandomForest/updated_tfidf_vectorizer.pkl")
-RANDOM_FOREST_MODEL = joblib.load("RandomForest/updated_trained_model.pkl")
 client = chromadb.PersistentClient(path="chroma_backup/chroma_db1")
 print(client.list_collections())
 
@@ -123,3 +121,17 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Log format
     datefmt="%Y-%m-%d %H:%M:%S",  # Date format for log messages
 )
+
+# needed for the pipeline to work
+def extract_features(X):
+     # Handle lists/arrays by converting to pandas Series
+    X_series = pd.Series(X) if not isinstance(X, pd.Series) else X
+    features = {
+        'num_words': X_series.apply(lambda x: len(x.split())),
+    }
+    return pd.DataFrame(features)
+
+import __main__
+__main__.extract_features = extract_features
+
+RANDOM_FOREST_MODEL = joblib.load("RandomForest/blooms_taxonomy_pipeline1.joblib")
