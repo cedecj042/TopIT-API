@@ -60,11 +60,35 @@ async def process_pdf(
     course_name: str = Form(...),
     course_id: int = Form(...),
     pdf_id: int = Form(...),
-):
-    # Read the file content
+):  
+    
+     # Read the file content
     file_content = await file.read()
-
-    # Schedule the background task for processing the PDF
+    
+    #open path file
+    if os.path.exists(UPLOADED_PDF_META_PATH) and UPLOADED_PDF_META_PATH.stat().st_size > 0:
+        with open(UPLOADED_PDF_META_PATH, 'r') as json_file:
+            pdf_data = json.load(json_file)
+            
+            # Check if filename it exist 
+            for item in pdf_data:
+                if item.get('filename') == file.filename:
+                    raise HTTPException(status_code=409, detail={"message": "Error: A file with this name already exists."})
+    else:
+        os.makedirs(os.path.dirname(UPLOADED_PDF_META_PATH), exist_ok=True)
+        pdf_data = []
+        
+    pdf_data.append({
+        "filename": file.filename,
+        "course_name": course_name,
+        "course_id": course_id,
+        "pdf_id": pdf_id,
+    })
+    
+    #write the metadata to the file
+    with open(UPLOADED_PDF_META_PATH, 'w') as json_file:
+        json.dump(pdf_data, json_file, indent=4)
+        
     background_tasks.add_task(
         actual_pdf_processing_function,
         file_content,
@@ -72,9 +96,9 @@ async def process_pdf(
         file.filename,
         course_id,
         pdf_id,
-    )
+    ) 
 
-    return {"message": "Processing started, you'll be notified when it's done."}
+    return {"message": "Processing started, you'll be notified when it's done.", "status": "success"}
 
 
 @app.delete("/delete/{pdf_name}")

@@ -30,6 +30,7 @@ import pandas as pd
 
 from dotenv import load_dotenv
 load_dotenv() 
+from pathlib import Path
 
 import nltk
 nltk.download('stopwords',quiet=True)
@@ -38,7 +39,7 @@ nltk.download('punkt_tab',quiet=True)
 nltk.download('wordnet',quiet=True)
 nltk.download('words', quiet=True)
 
-
+UPLOADED_PDF_META_PATH = Path("File_metadata/uploaded_pdfs_meta.json")
 API_KEY = os.getenv("OPENAI_API_KEY")
 LARAVEL_IP = os.getenv('LARAVEL_IP_ADDRESS')
 LARAVEL_PORT = os.getenv("LARAVEL_PORT")
