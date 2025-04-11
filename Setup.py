@@ -96,14 +96,14 @@ print(client.list_collections())
 
 CONTENT_DOCUMENT = Chroma(
     # client=chroma_client,
-    collection_name="TopIT1",
+    collection_name="TopIT2",
     embedding_function=SBERT,
     persist_directory=CHROMA_PERSIST_DIR,
 )
 
 QUESTION_DOCUMENT = Chroma(
     # client=chroma_client,
-    collection_name="Questions1",
+    collection_name="Questions2",
     embedding_function=SBERT,
     persist_directory=CHROMA_PERSIST_DIR
 )
@@ -124,14 +124,15 @@ logging.basicConfig(
 
 # needed for the pipeline to work
 def extract_features(X):
-     # Handle lists/arrays by converting to pandas Series
     X_series = pd.Series(X) if not isinstance(X, pd.Series) else X
     features = {
         'num_words': X_series.apply(lambda x: len(x.split())),
     }
     return pd.DataFrame(features)
 
+
 import __main__
 __main__.extract_features = extract_features
 
 RANDOM_FOREST_MODEL = joblib.load("RandomForest/blooms_taxonomy_pipeline1.joblib")
+

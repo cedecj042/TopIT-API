@@ -132,9 +132,217 @@ async def extract_text_from_layout(sorted_layout, image):
     return items
 
 
-# Initialize order counter
-order_counter = 1
-def add_to_last_object(course_structure, key, value):
+# # Initialize order counter
+# order_counter = 1
+# def add_to_last_object(course_structure, key, value):
+#     """Recursively add content to the correct level in the nested structure following the course hierarchy."""
+    
+#     def find_last_object(structure, object_type):
+#         if isinstance(structure, dict):
+#             logging.info(f"Searching for last {object_type} in {list(structure.keys())}")
+#             if object_type in structure and structure[object_type]:
+#                 logging.info(f"Found {object_type} in structure, returning the last one")
+#                 return structure[object_type][-1]  # Safely return the last object if it exists
+#             for key in ["Modules", "Lessons", "Sections", "Subsections"]:
+#                 if key in structure and structure[key]:
+#                     logging.info(f"Recursively searching in {key}")
+#                     return find_last_object(structure[key][-1], object_type)  # Recursively find the last object
+#         logging.info(f"Could not find {object_type} in the structure")
+#         return None 
+    
+#     def get_total(items):
+#         if items is None:
+#             return 1 
+#         return len(items) + 1
+
+#     logging.info(f"Adding {key} to the course structure")
+    
+#     global order_counter
+    
+#     # Reset the order when we encounter a new level (Module, Lesson, Section, Subsection)
+#     if key in ["Module", "Lesson", "Section", "Subsection"]:
+#         order_counter = 1
+        
+#         if key == "Module": 
+#             module = {"Title": value["text"], "Type": value["type"], "Lessons": [], "Content": []}
+#             course_structure["Modules"].append(module)
+#         elif key == "Lesson":
+#             last_module = find_last_object(course_structure, "Modules")
+#             if last_module and "Lessons" in last_module:
+#                 lesson = {"Title": value["text"], "Type": value["type"], "Sections": [], "Content": []}
+#                 last_module["Lessons"].append(lesson)
+#             else:
+#                 new_module = {"Title": f"Module {get_total(course_structure['Modules'])}", "Type": 'Module', "Lessons": [], "Content": []}
+#                 lesson = {"Title": value["text"], "Type": value["type"], "Sections": [], "Content": []}
+#                 new_module["Lessons"].append(lesson)
+#                 course_structure["Modules"].append(new_module)
+#         elif key == "Section":
+#             last_lesson = find_last_object(course_structure, "Lessons")
+#             if last_lesson:
+#                 section = {"Title": value["text"], "Type": value["type"], "Subsections": [], "Content": []}
+#                 last_lesson["Sections"].append(section)
+#             else:
+#                 new_lesson = {"Title": "", "Type": "Lesson", "Sections": [], "Content": []}
+#                 section = {"Title": value["text"], "Type": value["type"], "Subsections": [], "Content": []}
+#                 new_lesson["Sections"].append(section)
+#                 last_module = find_last_object(course_structure, "Modules")
+#                 if last_module:
+#                     last_module["Lessons"].append(new_lesson)
+#                 else:
+#                     new_module = {"Title": f"Module {get_total(course_structure['Modules'])}", "Type": "Module", "Lessons": [], "Content": []}
+#                     new_module["Lessons"].append(new_lesson)
+#                     course_structure["Modules"].append(new_module)
+#         elif key == "Subsection":
+#             last_section = find_last_object(course_structure, "Sections")
+#             if last_section:
+#                 subsection = {"Title": value["text"], "Content": []}
+#                 last_section["Subsections"].append(subsection)
+#             else:
+#                 new_section = {"Title": "", "Type": "Section", "Subsections": [], "Content": []}
+#                 subsection = {"Title": value["text"], "Type": value["type"], "Content": []}
+#                 new_section["Subsections"].append(subsection)
+#                 last_lesson = find_last_object(course_structure, "Lessons")
+#                 if last_lesson:
+#                     last_lesson["Sections"].append(new_section)
+#                 else:
+#                     logging.debug(f"Creating a new lesson and adding a section with subsection")
+#                     new_lesson = {"Title": "", "Type": "Lesson", "Sections": [], "Content": []}
+#                     new_lesson["Sections"].append(new_section)
+#                     last_module = find_last_object(course_structure, "Modules")
+#                     if last_module:
+#                         last_module["Lessons"].append(new_lesson)
+#                     else:
+#                         new_module = {"Title": f"Module {get_total(course_structure['Modules'])}", "Type": "Module", "Lessons": [], "Content": []}
+#                         new_module["Lessons"].append(new_lesson)
+#                         course_structure["Modules"].append(new_module)
+
+#     # Track order for content items like Tables, Figures, Text, Header
+#     else:
+#         last_obj = find_last_object(course_structure, "Subsections") or \
+#                    find_last_object(course_structure, "Sections") or \
+#                    find_last_object(course_structure, "Lessons") or \
+#                    find_last_object(course_structure, "Modules") or \
+#                    course_structure
+#         if key == "Text":
+#             # Check if there's a previous Text item in Content with an adjacent order
+#             if last_obj["Content"] and last_obj["Content"][-1]["type"] == "Text" and last_obj["Content"][-1]["order"] == order_counter - 1:
+#                 # Merge text with the previous Text entry
+#                 last_obj["Content"][-1]["text"] += " " + value["text"]
+#             else:
+#                 # Add as new Text entry with current order
+#                 value["order"] = order_counter
+#                 if "Content" not in last_obj:
+#                     last_obj["Content"] = []
+#                 last_obj["Content"].append(value)
+#                 order_counter += 1
+#         elif key == "Tables":   
+#             if "Tables" not in last_obj:
+#                 last_obj["Tables"] = []         
+#             # Check if the last table item was not merged, to ensure we only merge once
+#             if last_obj["Tables"] and last_obj["Tables"][-1].get("merged") is not True:
+#                 # If the previous item is also a Table, merge it with the current Table
+#                 previous_item = last_obj["Tables"].pop()  # Remove the previous item to merge it
+
+#                 # Call merge_images_centered only once with both images
+#                 merged_image = merge_images_centered([
+#                     decode_base64_image(previous_item["image_base64"]),
+#                     decode_base64_image(value["image_base64"])
+#                 ])
+                
+#                 # Convert the merged image to base64
+#                 merged_image_base64 = image_to_base64(merged_image)
+
+#                 # Create a new merged item and add it back to Tables
+#                 merged_item = {
+#                     "type": "Tables",
+#                     "image_base64": merged_image_base64,  # Store the merged image as base64
+#                     "before_caption": value.get("before_caption"),
+#                     "after_caption": value.get("after_caption"),
+#                     "order": order_counter,
+#                     "merged": True  # Flag to indicate this is a merged item
+#                 }
+#                 last_obj["Tables"].append(merged_item)
+#                 order_counter += 1
+#             else:
+#                 # If no previous Table to merge, add the current Table as a new entry
+#                 value["order"] = order_counter
+#                 last_obj["Tables"].append(value)
+#                 order_counter += 1
+#         else:
+#             value["order"] = order_counter
+#             if key == "Tables":
+#                 if "Tables" not in last_obj:
+#                     last_obj["Tables"] = []
+#                 last_obj["Tables"].append(value)
+#             elif key == "Figures":
+#                 if "Figures" not in last_obj:
+#                     last_obj["Figures"] = []
+#                 last_obj["Figures"].append(value)
+#             elif key == "Code":
+#                 if "Codes" not in last_obj:
+#                     last_obj["Codes"] = []
+#                 last_obj["Codes"].append(value)
+#             else:
+#                 if "Content" not in last_obj:
+#                     last_obj["Content"] = []
+#                 last_obj["Content"].append(value)
+#             # Increment order for each content element added
+#             order_counter += 1
+
+# def build_json_structure(extracted_data, course_structure=None, course_name=""):
+#     if not isinstance(extracted_data, dict):
+#         logging.error(f"Expected extracted_data to be a dict, got {type(extracted_data)}")
+#         return course_structure  # Or raise an exception
+    
+#     # Initialize the course structure with the course name
+#     if course_structure is None:
+#         course_structure = {"Course": course_name, "Modules": []}
+
+#     # To keep track of unassigned captions (before and after)
+#     before_caption = None
+#     last_block_info = None
+    
+#     for block_id, data in extracted_data.items():
+#         text_type = data.get("type")
+
+#         # Handle caption before the table/figure/code
+#         if text_type == "Caption":
+#             if last_block_info and last_block_info["type"] in ["Tables", "Figures", "Code"]:
+#                 # Associate this caption as an after caption
+#                 last_block_info["after_caption"] = data.get("text")
+#                 last_block_info = None  # Reset after use
+#             else:
+#                 before_caption = data.get("text")
+#             continue
+
+#         # Handle tables, figures, and code blocks
+#         if text_type in ["Tables", "Figures", "Code"]:
+#             block_info = {
+#                 "type": text_type,
+#                 "image_base64": data.get("image_base64"),
+#                 "before_caption": before_caption,  # Caption that appeared before this block
+#                 "after_caption": None  # Placeholder for caption that may appear after
+#             }
+#             before_caption = None  # Reset the before caption after using it
+#             last_block_info = block_info  # Temporarily store this block info for possible after caption
+            
+#             # Add the block_info to the structure immediately
+#             add_to_last_object(course_structure, text_type, block_info)
+            
+#         else:
+#             # Handle other text types like headers or regular text
+#             block_info = {
+#                 "type": text_type,
+#                 "text": data.get("text")
+#             }
+#             last_block_info = None  # Reset, as this is not a table/figure/code
+
+#             # Add the block_info to the structure immediately
+#             add_to_last_object(course_structure, text_type, block_info)
+    
+#     return course_structure
+
+async def add_to_last_object(course_structure, key, value, order_counter):
     """Recursively add content to the correct level in the nested structure following the course hierarchy."""
     
     def find_last_object(structure, object_type):
@@ -157,11 +365,11 @@ def add_to_last_object(course_structure, key, value):
 
     logging.info(f"Adding {key} to the course structure")
     
-    global order_counter
+    # global order_counter
     
     # Reset the order when we encounter a new level (Module, Lesson, Section, Subsection)
     if key in ["Module", "Lesson", "Section", "Subsection"]:
-        order_counter = 1
+        order_counter[0] = 1
         
         if key == "Module": 
             module = {"Title": value["text"], "Type": value["type"], "Lessons": [], "Content": []}
@@ -225,16 +433,16 @@ def add_to_last_object(course_structure, key, value):
                    course_structure
         if key == "Text":
             # Check if there's a previous Text item in Content with an adjacent order
-            if last_obj["Content"] and last_obj["Content"][-1]["type"] == "Text" and last_obj["Content"][-1]["order"] == order_counter - 1:
+            if last_obj["Content"] and last_obj["Content"][-1]["type"] == "Text" and last_obj["Content"][-1]["order"] == order_counter[0] - 1:
                 # Merge text with the previous Text entry
                 last_obj["Content"][-1]["text"] += " " + value["text"]
             else:
                 # Add as new Text entry with current order
-                value["order"] = order_counter
+                value["order"] = order_counter[0]
                 if "Content" not in last_obj:
                     last_obj["Content"] = []
                 last_obj["Content"].append(value)
-                order_counter += 1
+                order_counter[0] += 1
         elif key == "Tables":   
             if "Tables" not in last_obj:
                 last_obj["Tables"] = []         
@@ -258,18 +466,18 @@ def add_to_last_object(course_structure, key, value):
                     "image_base64": merged_image_base64,  # Store the merged image as base64
                     "before_caption": value.get("before_caption"),
                     "after_caption": value.get("after_caption"),
-                    "order": order_counter,
+                    "order": order_counter[0],
                     "merged": True  # Flag to indicate this is a merged item
                 }
                 last_obj["Tables"].append(merged_item)
-                order_counter += 1
+                order_counter[0] += 1
             else:
                 # If no previous Table to merge, add the current Table as a new entry
-                value["order"] = order_counter
+                value["order"] = order_counter[0]
                 last_obj["Tables"].append(value)
-                order_counter += 1
+                order_counter[0] += 1
         else:
-            value["order"] = order_counter
+            value["order"] = order_counter[0]
             if key == "Tables":
                 if "Tables" not in last_obj:
                     last_obj["Tables"] = []
@@ -287,9 +495,9 @@ def add_to_last_object(course_structure, key, value):
                     last_obj["Content"] = []
                 last_obj["Content"].append(value)
             # Increment order for each content element added
-            order_counter += 1
+            order_counter[0] += 1
 
-def build_json_structure(extracted_data, course_structure=None, course_name=""):
+async def build_json_structure(extracted_data, course_structure=None, course_name=""):
     if not isinstance(extracted_data, dict):
         logging.error(f"Expected extracted_data to be a dict, got {type(extracted_data)}")
         return course_structure  # Or raise an exception
@@ -301,6 +509,7 @@ def build_json_structure(extracted_data, course_structure=None, course_name=""):
     # To keep track of unassigned captions (before and after)
     before_caption = None
     last_block_info = None
+    order_counter = [1] 
     
     for block_id, data in extracted_data.items():
         text_type = data.get("type")
@@ -327,7 +536,7 @@ def build_json_structure(extracted_data, course_structure=None, course_name=""):
             last_block_info = block_info  # Temporarily store this block info for possible after caption
             
             # Add the block_info to the structure immediately
-            add_to_last_object(course_structure, text_type, block_info)
+            await add_to_last_object(course_structure, text_type, block_info, order_counter)
             
         else:
             # Handle other text types like headers or regular text
@@ -338,7 +547,7 @@ def build_json_structure(extracted_data, course_structure=None, course_name=""):
             last_block_info = None  # Reset, as this is not a table/figure/code
 
             # Add the block_info to the structure immediately
-            add_to_last_object(course_structure, text_type, block_info)
+            await add_to_last_object(course_structure, text_type, block_info, order_counter)
     
     return course_structure
 
@@ -352,7 +561,7 @@ async def process_pdf_images(pdf_folder_path, model, course_name):
         sorted_layout = await process_image_with_layoutparser(image, model)
         extracted_text = await extract_text_from_layout(sorted_layout, image)
         
-        course_structure = build_json_structure(extracted_text, course_structure, course_name)
+        course_structure = await build_json_structure(extracted_text, course_structure, course_name)
 
     return course_structure
 

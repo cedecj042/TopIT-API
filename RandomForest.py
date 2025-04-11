@@ -13,7 +13,7 @@ import inflect
 import re
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics.pairwise import cosine_similarity
-
+import random
 # Initialize the encoder
 # label_encoder = LabelEncoder()
 import pandas as pd
@@ -257,18 +257,19 @@ def match_difficulty(prediction):
     }
     return difficulty_mapping.get(prediction, "Unknown Difficulty") 
 
-
-def get_discrimination(type):
-    if type == "Very Easy":
-        return 0.2
-    elif type == "Easy":
-        return 0.4
-    elif type == "Average":
-        return 0.6
-    elif type == "Hard":
-        return 0.8
+def get_discrimination(difficulty_type):
+    if difficulty_type == "Very Easy":
+        return random.uniform(0.1, 0.4)
+    elif difficulty_type == "Easy":
+        return random.uniform(0.4, 0.8)
+    elif difficulty_type == "Average":
+        return random.uniform(0.8, 1.2)
+    elif difficulty_type == "Hard":
+        return random.uniform(1.2, 1.6)
+    elif difficulty_type == "Very Hard":
+        return random.uniform(1.6, 2.0)
     else:
-        return 1.0
+        raise ValueError("Invalid difficulty type")
 
 
 def checkExactMatch(query_text, similarity_threshold=0.90):

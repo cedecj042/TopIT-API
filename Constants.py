@@ -98,7 +98,13 @@ BLOOMS_MAPPING = {
             - "Name one..."
             - "Recall one..
         to ensure the question leads to an objective, factual response.
-        * If using enumerate, identify, list, name, recall. Indicate all answers.
+        * DO NOT INCLUDE subjective or conceptual questions where:
+            - The answer is paraphrasable or interpretative.
+            - The question asks about a purpose, benefit, goal,principle etc...
+            - The answer is more than **3 words** or not a term. 
+        * If a question has **more than one valid phrasing of the correct answer** (e.g., "dynamic" and "dynamic routing"):
+            - Include **all accepted variations** in the "answer" list.
+            - Limit to **1–3 acceptable synonyms** that reflect real-world terminology, not paraphrases.
         * Limit each question to 5-10 words.
         * The answer should not be found in the question.
                 
@@ -150,6 +156,14 @@ BLOOMS_MAPPING = {
         * Ensure distractors (incorrect choices) are plausible and align with the "Understand" cognitive level.
         * Keywords: "Summarize", "Explain","Describe","Compare","Classify", "Paraphrase", "Discuss", "Illustrate", "Interpret", "Clarify",
         * Ensure that the answer can be found in the choices.
+        * **Distractor Quality (VERY IMPORTANT):**
+            - Each incorrect choice (distractor) must be **clearly incorrect** and **not similar** in phrasing, logic, or context to the correct answer.
+            - Do NOT include distractors that:
+                * Use the same keywords or structure as the correct answer.
+                * Sound "technically plausible" but are unrelated or vague.
+                * Could be partially correct depending on interpretation.
+
+            *Each distractor must be clearly eliminated by someone who understands the concept.*
         """,
         "question_types": """
             **1. Multiple Choice - Single Questions:**
@@ -209,25 +223,18 @@ BLOOMS_MAPPING = {
         * **Practical Problem-Solving:** Emphasize questions that require applying concepts to solve practical problems.
         * **3-Sentence Limit:** Each question must be a maximum of 2 sentences.
         * Ensure that the answer can be found in the choices.
+        * **Distractor Quality (VERY IMPORTANT):**
+            - Each incorrect choice (distractor) must be **clearly incorrect** and **not similar** in phrasing, logic, or context to the correct answer.
+            - Do NOT include distractors that:
+                * Use the same keywords or structure as the correct answer.
+                * Sound "technically plausible" but are unrelated or vague.
+                * Could be partially correct depending on interpretation.
+
+            *Each distractor must be clearly eliminated by someone who understands the concept.*
         """,
         "question_types": """
-            **Identification Questions (Apply Level):**
-                **Keywords:** Use keywords such as "Calculate," "Predict," "Determine," "Implement," or "Solve."
-                * **Application Focus:** Questions must require applying knowledge to produce a specific output or solve a practical problem.
-                * **Code/Computational Emphasis:** Prioritize code output prediction, calculations, or other computational tasks.
-                * **Practical Scenarios:** Incorporate scenarios where learners apply their understanding to real-world or simulated problems.
-                * **Answer Format:** Provide an array containing the exact output or solution.
-                * **Answer Length:** Answers should be concise and directly address the question.
-                * **Required Keys:** "question", "questionType", "answer"
-                * **QuestionType:** The questionType key must always be "Identification"
-                Example:
-                {
-                    "question": "Calculate the output of the Python code: print(2 + 3 * 4).",
-                    "questionType": "Identification",
-                    "answer": ["14"]
-                }
-
-            Generate Multiple Choice - Single questions adhering to the following guidelines:
+            
+             **1. Multiple Choice - Single Questions:**
             * **Keywords:** "Solve", "Use", "Implement", "Execute", "Demonstrate", "Perform", "Apply", "Calculate", "Operate", "Utilize",
             * **Practical Scenarios:** Incorporate realistic, practical scenarios to enhance engagement and relevance.
             * **Single Correct Answer:** Each question must have only one definitively correct answer.
@@ -240,11 +247,37 @@ BLOOMS_MAPPING = {
 
             Example:
             {
-                "question": "Define the software development cycle.",
+                "question": "An organization is configuring access controls for a shared network drive containing sensitive project documents and general company announcements. A junior analyst needs to regularly read the project documents for reporting purposes but should not be able to modify them or see the company announcements folder. **Implement** the principle of least privilege for this analyst's access to the shared drive.",
                 "questionType": "Multiple Choice - Single",
-                "answer": "A structured process for planning, creating, testing, and deploying software.",
-                "choices": ["A structured process for planning, creating, testing, and deploying software.","The process of writing code in a programming language.","The act of only debugging and testing software.","The process of only designing the user interface."]
+                "answer": "Grant read-only access specifically to the project documents folder.",
+                "choices": [
+                    "Grant read-only access specifically to the project documents folder.",
+                    "Grant full control (read/write/delete) access to the entire shared drive.",
+                    "Grant read/write access to the project documents folder only.",
+                    "Deny all access to the shared drive."
+                ]
             }
+            2. Multiple Choice - Many:
+            * Each question must have at least two correct answers.
+            * Ensure that the question is designed to have multiple correct answers and not just one.
+            * Required Keys: "question", "questionType", "answer", "choices"
+            * QuestionType: The questionType key must always be "Multiple Choice - Many"
+            Example:
+            {
+                "question": "A programmer needs to process a list of sensor readings ('temperatures') where each reading is a floating-point number. The goal is to create a new list containing only the readings that are between 15.0 and 30.0 (inclusive) and rounded to one decimal place. Which of the following code snippets correctly applies list comprehension and rounding to achieve this specific task in Python? (Select all that apply)",
+                "questionType": "Multiple Choice - Many",
+                "answer": [
+                    "rounded_temps = [round(temp, 1) for temp in temperatures if 15.0 <= temp <= 30.0]",
+                    "rounded_temps = [round(t, 1) for t in temperatures if t >= 15.0 and t <= 30.0]"
+                ],
+                "choices": [
+                    "rounded_temps = [round(temp, 1) for temp in temperatures if 15.0 <= temp <= 30.0]",
+                    "rounded_temps = [temp for temp in temperatures if 15.0 <= round(temp, 1) <= 30.0]",
+                    "rounded_temps = []\nfor temp in temperatures:\n  if 15.0 <= temp <= 30.0:\n    rounded_temps.append(round(temp, 1))",
+                    "rounded_temps = [round(t, 1) for t in temperatures if t >= 15.0 and t <= 30.0]",
+                    "rounded_temps = round([temp for temp in temperatures if 15.0 <= temp <= 30.0], 1)"
+                ]
+                }
         """,
     },
     "Analyze": {
@@ -279,6 +312,14 @@ BLOOMS_MAPPING = {
         * **Plausible Distractors:** Ensure that the incorrect answer choices (distractors) are plausible and logically related to the question, reflecting the appropriate cognitive level of analysis.
         * **Keywords:** "Differentiate", "Organize", "Compare", "Contrast", "Categorize", "Examine", "Distinguish", "Investigate", "Decompose",
         * Ensure that the answer can be found in the choices.
+        * **Distractor Quality (VERY IMPORTANT):**
+            - Each incorrect choice (distractor) must be **clearly incorrect** and **not similar** in phrasing, logic, or context to the correct answer.
+            - Do NOT include distractors that:
+                * Use the same keywords or structure as the correct answer.
+                * Sound "technically plausible" but are unrelated or vague.
+                * Could be partially correct depending on interpretation.
+
+            *Each distractor must be clearly eliminated by someone who understands the concept.*
         """,
         "question_types": """
             **1. Multiple Choice - Single Questions:**
@@ -339,6 +380,14 @@ BLOOMS_MAPPING = {
         * **Plausible Distractors:** Ensure that the incorrect answer choices (distractors) are plausible and logically related to the question, reflecting the appropriate cognitive level of analysis.
         * **Keywords:** "Judge", "Critique", "Recommend", "Justify", "Prioritize", "Argue", "Assess", "Defend", "Evaluate", "Validate",
         * Ensure that the answer can be found in the choices.
+        * **Distractor Quality (VERY IMPORTANT):**
+            - Each incorrect choice (distractor) must be **clearly incorrect** and **not similar** in phrasing, logic, or context to the correct answer.
+            - Do NOT include distractors that:
+                * Use the same keywords or structure as the correct answer.
+                * Sound "technically plausible" but are unrelated or vague.
+                * Could be partially correct depending on interpretation.
+
+            *Each distractor must be clearly eliminated by someone who understands the concept.*
         """,
         "question_types": """
             **1. Multiple Choice - Single Questions:**
@@ -417,6 +466,25 @@ Very hard
         Create only multiple-choice questions that require critical thinking, justification, and making informed decisions. 
         Questions should present complex scenarios where students must evaluate options, recommend solutions, and provide rationale. 
         Question should have a minimum of 4 sentences.  All scenarios must include specific measurement criteria, metrics, or standards for objective evaluation.
+"""
+
+"""
+**Identification Questions (Apply Level):**
+                **Keywords:** Use keywords such as "Calculate," "Predict," "Determine," "Implement," or "Solve."
+                * **Application Focus:** Questions must require applying knowledge to produce a specific output or solve a practical problem.
+                * **Code/Computational Emphasis:** Prioritize code output prediction, calculations, or other computational tasks.
+                * **Practical Scenarios:** Incorporate scenarios where learners apply their understanding to real-world or simulated problems.
+                * **Answer Format:** Provide an array containing the exact output or solution.
+                * **Answer Length:** Answers should be concise and directly address the question.
+                * **Required Keys:** "question", "questionType", "answer"
+                * **QuestionType:** The questionType key must always be "Identification"
+                Example:
+                {
+                    "question": "Calculate the output of the Python code: print(2 + 3 * 4).",
+                    "questionType": "Identification",
+                    "answer": ["14"]
+                }
+
 """
 IDENTIFICATION_SAMPLE_QA = """
 { 'question': 'Identify an example of a non-functional requirement.',

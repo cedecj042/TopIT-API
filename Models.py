@@ -74,8 +74,20 @@ class CourseModel(BaseModel):
     title: str
     description: str
     
-class QueryRequest(BaseModel):
-    query: str
 
 class CourseDataRequest(BaseModel):
     course_data: dict
+      
+class QuestionDataRequest(BaseModel):
+    question: str
+    question_id: int
+    question_uid: str
+    question_type: str
+    difficulty_type: str
+    difficulty_value: float
+    discrimination_index: float
+    answer: List[str]
+    choices: Optional[List[str]] = None
+    course_id:int
+    test_type: str
+    
