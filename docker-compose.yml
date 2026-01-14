@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    command: sh -c "uvicorn Main:app --host 0.0.0.0 --port 8001 --loop asyncio"
+    command: sh -c "uvicorn Main:app --host 0.0.0.0 --port 8001 --loop asyncio --workers 3"
     env_file:
       - .env
     ports: 

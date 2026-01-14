@@ -272,7 +272,7 @@ def get_discrimination(difficulty_type):
         raise ValueError("Invalid difficulty type")
 
 
-def checkExactMatch(query_text, similarity_threshold=0.90):
+def checkExactMatch(query_text,course_id,module_uid, similarity_threshold=0.90):
     """
     Check for similar questions in ChromaDB using cosine similarity.
     """
@@ -287,7 +287,16 @@ def checkExactMatch(query_text, similarity_threshold=0.90):
             return None
         k = min(5, collection_size)
 
-        results = QUESTION_DOCUMENT.similarity_search_with_score(query=query_text, k=k)
+        results = QUESTION_DOCUMENT.similarity_search_with_score(
+            query=query_text,
+            k=k,
+            filter={
+                "$and": [
+                    {"course_id": {"$eq": course_id}},
+                    {"module_uid": {"$eq": module_uid}}
+                ]
+            }
+        )
         for doc, score in results:
             cosine_similarity = 1 - score
             if cosine_similarity >= similarity_threshold:

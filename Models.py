@@ -9,6 +9,7 @@ from langchain.embeddings.base import Embeddings
 class QuestionFormat(BaseModel):
     course_id: int
     course_title: str
+    question_job_id: int
     numOfVeryEasy: int
     numOfEasy: int
     numOfAverage: int
@@ -32,13 +33,13 @@ class Question(BaseModel):
 class CreateQuestionsRequest(BaseModel):
     course_id: int
     course_title: str
+    question_job_id: int
     difficulty: Difficulty
 
 class ContentModel(BaseModel):
     content_id: int
     type: str  # Enum could also be used here
     description: str
-    order: int
     caption: Optional[str] = None
     
 class SubsectionModel(BaseModel):
