@@ -205,7 +205,6 @@ async def add_modules_bulk(modules: List[ModuleModel]):
 async def create_course(course: CourseModel):
     try:
         logging.info("Creating new course")
-        # Query the collection to see if a course with the same course_id already exists
         existing_course = CONTENT_DOCUMENT._collection.get(
             where={"course_id": course.course_id}
         )

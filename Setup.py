@@ -92,7 +92,6 @@ SBERT = HuggingFaceEmbeddings(
 )
 
 client = chromadb.PersistentClient(path="chroma_backup/chroma_db1")
-print(client.list_collections())
 
 CONTENT_DOCUMENT = Chroma(
     # client=chroma_client,

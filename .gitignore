@@ -18,3 +18,5 @@ __pycache__/functions.cpython-310.pyc
 __pycache__/main.cpython-310.pyc
 __pycache__/rag.cpython-310.pyc
 DistilBertModel/
+chroma_db1_backup.tar.gz
+chroma_db1_recent.tar.gz

@@ -184,6 +184,7 @@ async def createQuestionPerDifficulty(data):
     try:
         result_questions = {
             "course_id": data.course_id,
+            "question_job_id": data.question_job_id,
             "course_title": data.course_title,
             "questions": [],
         }
@@ -246,7 +247,6 @@ async def createQuestionPerDifficulty(data):
                         logging.error(f"Empty response received for difficulty: {difficulty_name}, iteration {iteration}")
                         continue  # Skip processing if response is empty
 
-                    # Remove markdown code block markers (```json and ```)
                     cleaned_response = response.strip("`")  # Removes backticks if present
                     if cleaned_response.startswith("json"):
                         cleaned_response = cleaned_response[len("json"):].strip()
@@ -273,7 +273,7 @@ async def createQuestionPerDifficulty(data):
                     question_type = question.get("questionType", "")
                     logging.info(f"Question: {question_text}")
                     # Skip duplicate or invalid questions
-                    if question_text in existing_questions or checkExactMatch(question_text):
+                    if question_text in existing_questions or checkExactMatch(question_text, data.course_id ,module_uid):
                         logging.info(f"Duplicate question skipped: {question_text}")
                         continue
                     
@@ -299,6 +299,7 @@ async def createQuestionPerDifficulty(data):
                             QUESTION_DOCUMENT.add_texts(
                                 texts=[question_text],
                                 metadatas=[{
+                                    "module_uid": module_uid,
                                     "question_uid": question_uid,
                                     "course_id" : data.course_id,
                                     "difficulty": predicted_class,
@@ -313,6 +314,7 @@ async def createQuestionPerDifficulty(data):
                             continue
                         
                         question.update({
+                            "module_uid": module_uid,
                             "question_uid" : question_uid,
                             "difficulty_type": predicted_class,
                             "difficulty_value": difficulty_value,
@@ -335,7 +337,6 @@ async def createQuestionPerDifficulty(data):
                 
         logging.info(f"Done generating questions for all difficulties.")
         
-        print(type(result_questions))
         updated_result_questions = updateIdentificationAnswers(result_questions, data.course_id)
         return updated_result_questions
 
@@ -445,7 +446,6 @@ def updateIdentificationAnswers(result_questions, course_id):
     
         except json.JSONDecodeError as e:
           logging.error(f"Error: {e}. Response: {cleaned_response}")
-          print(f"Error processing the response: {e}")
           continue
       
     return result_questions
@@ -492,6 +492,7 @@ async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest])
         data = QuestionFormat(
             course_id=course.course_id,
             course_title=course.course_title,
+            question_job_id=course.question_job_id,
             numOfVeryEasy=course.difficulty.numOfVeryEasy,
             numOfEasy=course.difficulty.numOfEasy,
             numOfAverage=course.difficulty.numOfAverage,
@@ -528,25 +529,4 @@ async def send_questions_to_laravel(requests_list: list[CreateQuestionsRequest])
         logging.error(f"Error while sending data to Laravel: {e}")
         return "Failed to send data to Laravel due to a connection error."
     
-
-import asyncio
-
-if __name__ == "__main__":
-    data = QuestionFormat(
-        course_id=1,
-        course_title="Software Development",
-        numOfVeryEasy=10,
-        numOfEasy=10,
-        numOfAverage=10,
-        numOfHard=10,
-        numOfVeryHard=10,
-    )
-
-    async def main():
-        result = await createQuestionPerDifficulty(data)
-        print("Generated Questions:")
-        print(result)
-
-    asyncio.run(main())
-
 
