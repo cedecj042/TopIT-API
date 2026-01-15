@@ -1,43 +1,42 @@
+version: "3.8"
+
 services:
-  app:
+  api:
     build: .
+<<<<<<< Updated upstream
     command: sh -c "uvicorn Main:app --host 0.0.0.0 --port 8001 --loop asyncio --workers 3"
+=======
+    container_name: topit-api
+    command: >
+      uvicorn Main:app
+      --host 0.0.0.0
+      --port 8001
+      --loop asyncio
+      --workers 1
+>>>>>>> Stashed changes
     env_file:
       - .env
-    ports: 
-      - "8001:8001"
-    networks:
-      - topit
     volumes:
       - .:/app
+    ports:
+      - "8001:8001"   # optional but useful for testing
     depends_on:
-      chromadb:
-        condition: service_healthy
+      - chromadb
+    networks:
+      - topit
 
   chromadb:
     image: chromadb/chroma:latest
-    container_name: chromadb
+    container_name: topit-chromadb
     restart: always
     volumes:
       - ./chroma_db1:/chroma_db
+    environment:
+      CHROMA_DB_DIR: /chroma_db
+      CHROMA_PERSIST_DIRECTORY: /chroma_db
     networks:
       - topit
-    environment:
-      - CHROMA_DB_DIR=/chroma_db
-      - CHROMA_PERSIST_DIRECTORY=/chroma_db
-      - CHROMA_SERVER_HTTP_PORT=8000
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 10s
-      retries: 5
-      start_period: 5s
-      timeout: 5s
 
 networks:
-    topit:
-        # driver: bridge
-        external: true
-
-        
+  topit:
+    external: true
