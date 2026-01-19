@@ -23,7 +23,7 @@ import time
 from typing import List
 
 
-nest_asyncio.apply()
+# nest_asyncio.apply()
 
 app = FastAPI()
 app.add_middleware(
